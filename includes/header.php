@@ -660,7 +660,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </div>
                 <div>
                     <?php if ($current_page == 'view_projects.php'): ?>
-                        <a href="modules/projects/add_project.php" class="btn btn-primary">
+                        <a href="add_project.php" class="btn btn-primary">
                             <i class="bi bi-plus-circle me-1"></i> Add New Project
                         </a>
                     <?php endif; ?>

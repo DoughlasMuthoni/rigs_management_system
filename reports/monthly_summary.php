@@ -76,162 +76,264 @@ foreach ($projects as $project) {
 }
 ?>
 
-<div class="container">
-    <div class="page-header">
-        <h2>Monthly Performance Report</h2>
-        <p><?php echo $rig_name; ?> - <?php echo date('F Y', strtotime("$year-$month-01")); ?></p>
+<div class="container-fluid mt-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2">Monthly Performance Report</h1>
+                    <p class="lead mb-0"><?php echo $rig_name; ?> - <?php echo date('F Y', strtotime("$year-$month-01")); ?></p>
+                </div>
+                <div class="btn-group">
+                    <button onclick="window.print()" class="btn btn-outline-primary">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <a href="export_excel.php?month=<?php echo $month; ?>&year=<?php echo $year; ?>&rig=<?php echo $rig_id; ?>" 
+                       class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Summary Cards -->
-    <div class="summary-cards">
-        <div class="summary-card">
-            <h3>Total Revenue</h3>
-            <div class="amount"><?php echo formatCurrency($monthly_data['revenue']); ?></div>
-        </div>
-        <div class="summary-card">
-            <h3>Total Expenses</h3>
-            <div class="amount"><?php echo formatCurrency($monthly_data['expenses']); ?></div>
-        </div>
-        <div class="summary-card">
-            <h3>Net Profit</h3>
-            <div class="amount <?php echo $monthly_data['profit'] >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                <?php echo formatCurrency($monthly_data['profit']); ?>
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-4 col-xl mb-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Total Revenue</h6>
+                    <h4 class="card-title fw-bold"><?php echo formatCurrency($monthly_data['revenue']); ?></h4>
+                </div>
             </div>
         </div>
-        <div class="summary-card">
-            <h3>Profit Margin</h3>
-            <div class="amount <?php echo $monthly_data['profit_margin'] >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
+        <div class="col-md-6 col-lg-4 col-xl mb-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Total Expenses</h6>
+                    <h4 class="card-title fw-bold"><?php echo formatCurrency($monthly_data['expenses']); ?></h4>
+                </div>
             </div>
         </div>
-        <div class="summary-card">
-            <h3>Projects Completed</h3>
-            <div class="amount"><?php echo $monthly_data['project_count']; ?></div>
+        <div class="col-md-6 col-lg-4 col-xl mb-3">
+            <div class="card <?php echo $monthly_data['profit'] >= 0 ? 'border-success' : 'border-danger'; ?>">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Net Profit</h6>
+                    <h4 class="card-title fw-bold <?php echo $monthly_data['profit'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                        <?php echo formatCurrency($monthly_data['profit']); ?>
+                    </h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl mb-3">
+            <div class="card <?php echo $monthly_data['profit_margin'] >= 0 ? 'border-success' : 'border-danger'; ?>">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Profit Margin</h6>
+                    <h4 class="card-title fw-bold <?php echo $monthly_data['profit_margin'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                        <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
+                    </h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl mb-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Projects Completed</h6>
+                    <h4 class="card-title fw-bold"><?php echo $monthly_data['project_count']; ?></h4>
+                </div>
+            </div>
         </div>
     </div>
     
-    <!-- Expense Breakdown -->
-    <div class="chart-container">
-        <h3>Expense Breakdown</h3>
-        <canvas id="expenseChart" height="100"></canvas>
+    <!-- Charts and Data -->
+    <div class="row">
+        <!-- Expense Breakdown Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Expense Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="expenseChart" height="250"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">Total Expenses: <?php echo formatCurrency($monthly_data['expenses']); ?></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Expense Breakdown Details -->
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Expense Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <?php 
+                        $expense_categories = [
+                            'salaries' => ['Salaries', 'primary'],
+                            'fuel' => ['Fuel', 'warning'],
+                            'casings' => ['Casings', 'info'],
+                            'consumables' => ['Consumables', 'success'],
+                            'miscellaneous' => ['Miscellaneous', 'secondary']
+                        ];
+                        
+                        foreach ($expense_categories as $key => $details):
+                            $percentage = $monthly_data['expenses'] > 0 ? 
+                                ($expense_breakdown[$key] / $monthly_data['expenses']) * 100 : 0;
+                        ?>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-<?php echo $details[1]; ?> me-2"><?php echo $details[0]; ?></span>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold"><?php echo formatCurrency($expense_breakdown[$key]); ?></div>
+                                <small class="text-muted"><?php echo number_format($percentage, 1); ?>%</small>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Projects List -->
-    <div class="table-container">
-        <h3>Projects Details (<?php echo count($projects); ?>)</h3>
-        
-        <?php if (count($projects) == 0): ?>
-            <div class="no-data">
-                <p>No projects found for this period.</p>
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Project Details</h5>
+                    <span class="badge bg-primary"><?php echo count($projects); ?> Projects</span>
+                </div>
+                <div class="card-body p-0">
+                    <?php if (count($projects) == 0): ?>
+                        <div class="text-center py-5">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No projects found for this period</h5>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Project Code</th>
+                                        <th>Project Name</th>
+                                        <?php if ($rig_id == 0): ?>
+                                            <th>Rig</th>
+                                        <?php endif; ?>
+                                        <th class="text-end">Revenue</th>
+                                        <th class="text-end">Expenses</th>
+                                        <th class="text-end">Profit</th>
+                                        <th class="text-end">Margin</th>
+                                        <th>Completion Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($projects as $project): 
+                                        $profit = calculateProjectProfit($project['id']);
+                                        $expenses = getProjectExpenses($project['id']);
+                                        $revenue = $project['payment_received'];
+                                        $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
+                                    ?>
+                                    <tr>
+                                        <td><span class="badge bg-secondary"><?php echo $project['project_code']; ?></span></td>
+                                        <td><?php echo htmlspecialchars($project['project_name']); ?></td>
+                                        <?php if ($rig_id == 0): ?>
+                                            <td><?php echo $project['rig_name']; ?></td>
+                                        <?php endif; ?>
+                                        <td class="text-end"><?php echo formatCurrency($revenue); ?></td>
+                                        <td class="text-end"><?php echo formatCurrency($expenses['total']); ?></td>
+                                        <td class="text-end <?php echo $profit >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'; ?>">
+                                            <?php echo formatCurrency($profit); ?>
+                                        </td>
+                                        <td class="text-end <?php echo $margin >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo number_format($margin, 2); ?>%
+                                        </td>
+                                        <td><?php echo date('d/m/Y', strtotime($project['completion_date'])); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="<?php echo $rig_id == 0 ? 3 : 2; ?>" class="fw-bold">TOTAL</td>
+                                        <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['revenue']); ?></td>
+                                        <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['expenses']); ?></td>
+                                        <td class="text-end fw-bold <?php echo $monthly_data['profit'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo formatCurrency($monthly_data['profit']); ?>
+                                        </td>
+                                        <td class="text-end fw-bold <?php echo $monthly_data['profit_margin'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
-        <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Project Code</th>
-                        <th>Project Name</th>
-                        <?php if ($rig_id == 0): ?>
-                            <th>Rig</th>
-                        <?php endif; ?>
-                        <th>Revenue</th>
-                        <th>Expenses</th>
-                        <th>Profit</th>
-                        <th>Margin</th>
-                        <th>Completion Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($projects as $project): 
-                        $profit = calculateProjectProfit($project['id']);
-                        $expenses = getProjectExpenses($project['id']);
-                        $revenue = $project['payment_received'];
-                        $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
-                    ?>
-                    <tr>
-                        <td><?php echo $project['project_code']; ?></td>
-                        <td><?php echo htmlspecialchars($project['project_name']); ?></td>
-                        <?php if ($rig_id == 0): ?>
-                            <td><?php echo $project['rig_name']; ?></td>
-                        <?php endif; ?>
-                        <td><?php echo formatCurrency($revenue); ?></td>
-                        <td><?php echo formatCurrency($expenses['total']); ?></td>
-                        <td class="<?php echo $profit >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                            <?php echo formatCurrency($profit); ?>
-                        </td>
-                        <td class="<?php echo $margin >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                            <?php echo number_format($margin, 2); ?>%
-                        </td>
-                        <td><?php echo date('d/m/Y', strtotime($project['completion_date'])); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-                <tfoot>
-                    <tr style="background-color: #f8f9fa; font-weight: bold;">
-                        <td colspan="<?php echo $rig_id == 0 ? 3 : 2; ?>">TOTAL</td>
-                        <td><?php echo formatCurrency($monthly_data['revenue']); ?></td>
-                        <td><?php echo formatCurrency($monthly_data['expenses']); ?></td>
-                        <td class="<?php echo $monthly_data['profit'] >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                            <?php echo formatCurrency($monthly_data['profit']); ?>
-                        </td>
-                        <td class="<?php echo $monthly_data['profit_margin'] >= 0 ? 'profit-positive' : 'profit-negative'; ?>">
-                            <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
-                        </td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        <?php endif; ?>
-    </div>
-    
-    <!-- Export Options -->
-    <div class="export-options">
-        <button onclick="window.print()" class="btn">Print Report</button>
-        <a href="export_excel.php?month=<?php echo $month; ?>&year=<?php echo $year; ?>&rig=<?php echo $rig_id; ?>" 
-           class="btn btn-secondary">Export to Excel</a>
+        </div>
     </div>
 </div>
 
 <script>
 // Expense Breakdown Chart
-const expenseCtx = document.getElementById('expenseChart').getContext('2d');
-const expenseChart = new Chart(expenseCtx, {
-    type: 'pie',
-    data: {
-        labels: ['Salaries', 'Fuel', 'Casings', 'Consumables', 'Miscellaneous'],
-        datasets: [{
-            data: [
-                <?php echo $expense_breakdown['salaries']; ?>,
-                <?php echo $expense_breakdown['fuel']; ?>,
-                <?php echo $expense_breakdown['casings']; ?>,
-                <?php echo $expense_breakdown['consumables']; ?>,
-                <?php echo $expense_breakdown['miscellaneous']; ?>
-            ],
-            backgroundColor: [
-                '#FF6384',
-                '#36A2EB',
-                '#FFCE56',
-                '#4BC0C0',
-                '#9966FF'
-            ]
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        let label = context.label || '';
-                        if (label) {
-                            label += ': ';
+document.addEventListener('DOMContentLoaded', function() {
+    const expenseCtx = document.getElementById('expenseChart').getContext('2d');
+    const expenseChart = new Chart(expenseCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Salaries', 'Fuel', 'Casings', 'Consumables', 'Miscellaneous'],
+            datasets: [{
+                data: [
+                    <?php echo $expense_breakdown['salaries']; ?>,
+                    <?php echo $expense_breakdown['fuel']; ?>,
+                    <?php echo $expense_breakdown['casings']; ?>,
+                    <?php echo $expense_breakdown['consumables']; ?>,
+                    <?php echo $expense_breakdown['miscellaneous']; ?>
+                ],
+                backgroundColor: [
+                    '#0d6efd', // Primary
+                    '#ffc107', // Warning
+                    '#0dcaf0', // Info
+                    '#198754', // Success
+                    '#6c757d'  // Secondary
+                ],
+                borderWidth: 1,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += 'Ksh ' + context.parsed.toLocaleString();
+                            return label;
                         }
-                        label += 'Ksh ' + context.parsed.toLocaleString();
-                        return label;
                     }
                 }
             }
         }
-    }
+    });
 });
 </script>
 
