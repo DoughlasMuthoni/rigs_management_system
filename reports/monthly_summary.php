@@ -1,5 +1,32 @@
 <?php
-require_once '../includes/header.php';
+// 1. First include config.php to define ROOT_PATH
+require_once '../config.php';
+
+// 2. Define month/year variables
+$selected_month = isset($_GET['month']) ? intval($_GET['month']) : date('m');
+$selected_year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
+
+// Validate month
+if ($selected_month < 1 || $selected_month > 12) {
+    $selected_month = date('m');
+}
+
+// Validate year
+if ($selected_year < 2020 || $selected_year > 2100) {
+    $selected_year = date('Y');
+}
+
+// 3. Set other required variables for header.php
+$user_role = isset($_SESSION['role']) ? $_SESSION['role'] : 'guest';
+$user_name = isset($_SESSION['full_name']) ? $_SESSION['full_name'] : 'User';
+$current_page = basename($_SERVER['PHP_SELF']);
+
+// 4. Load functions.php
+require_once ROOT_PATH . '/includes/functions.php';
+
+// 5. Load header.php (now all variables are defined)
+require_once ROOT_PATH . '/includes/header.php';
+
 
 // Get parameters
 $rig_id = isset($_GET['rig']) ? intval($_GET['rig']) : 0;

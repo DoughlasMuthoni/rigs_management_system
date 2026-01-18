@@ -1,5 +1,10 @@
 <?php
-require_once '../../includes/header.php';
+// view_projects.php
+require_once '../../config.php';
+require_once ROOT_PATH . '/includes/init.php';
+require_once ROOT_PATH . '/includes/functions.php';
+require_once ROOT_PATH . '/includes/header.php';
+
 
 // Check user permissions
 if (!hasRole('admin') && !hasRole('manager')) {
@@ -72,7 +77,7 @@ $sql = "SELECT
 $rigs = fetchAll($sql);
 ?>
 
-<main class="main-content">
+<main class="container-fluid mt-4">
     <!-- Page Header -->
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center">

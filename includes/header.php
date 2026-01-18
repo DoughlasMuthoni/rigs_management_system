@@ -1,57 +1,72 @@
 <?php
-// Remove session_start() since it should be called in the main file
-session_start(); 
+// includes/header.php
+// require_once '../config.php';
 
-// Check if functions.php exists and include it
-$functions_path = dirname(__FILE__) . '/functions.php';
-if (file_exists($functions_path)) {
-    require_once $functions_path;
-} else {
-    // Try alternative path
-    $functions_path = __DIR__ . '/functions.php';
-    if (file_exists($functions_path)) {
-        require_once $functions_path;
-    }
+// Security check
+if (!function_exists('isLoggedIn') || !isLoggedIn()) {
+    header('Location: ' . BASE_URL . '/login.php');
+    exit();
 }
 
-// Check if user is logged in, redirect if not
-// Only run if function exists to avoid errors
-if (function_exists('isLoggedIn')) {
-    if (!isLoggedIn() && basename($_SERVER['PHP_SELF']) != 'login.php' && basename($_SERVER['PHP_SELF']) != 'login.php') {
-        header('Location: login.php');
-        exit();
-    }
-}
+// Get user info
+$user_role = $_SESSION['role'] ?? 'guest';
+$user_name = $_SESSION['full_name'] ?? 'User';
 
-// Get current month and year for dashboard
-$current_month = date('m');
-$current_year = date('Y');
-
-// Get selected month/year from GET or use current
-$selected_month = isset($_GET['month']) ? intval($_GET['month']) : $current_month;
-$selected_year = isset($_GET['year']) ? intval($_GET['year']) : $current_year;
-
-// Validate month
-if ($selected_month < 1 || $selected_month > 12) {
-    $selected_month = $current_month;
-}
-
-// Validate year
-if ($selected_year < 2020 || $selected_year > 2100) {
-    $selected_year = $current_year;
-}
-
-// Get user role for conditional displays
-$user_role = isset($_SESSION['role']) ? $_SESSION['role'] : 'guest';
-$user_name = isset($_SESSION['full_name']) ? $_SESSION['full_name'] : 'User';
-
-// Define site name if not already defined
-if (!defined('SITE_NAME')) {
-    define('SITE_NAME', 'WaterLiftSolar');
-}
-
-// Determine current page and active nav
+// Get current page
 $current_page = basename($_SERVER['PHP_SELF']);
+
+// Dashboard pages that show month selector
+$dashboard_pages = ['index.php', 'monthly_summary.php', 'rig_comparison.php'];
+
+// Navigation structure - removed unwanted items
+// Navigation structure - removed unwanted items
+$nav_items = [
+    'Dashboard' => [
+        'icon' => 'bi-speedometer2',
+        'url' => '/waterliftsolar_rig_tracker/index.php',
+        'pages' => ['index.php']
+    ],
+    'Add Project' => [
+        'icon' => 'bi-plus-circle',
+        'url' => '/waterliftsolar_rig_tracker/modules/projects/add_project.php',
+        'pages' => ['add_project.php']
+    ],
+    'View Projects' => [
+        'icon' => 'bi-list-check',
+        'url' => '/waterliftsolar_rig_tracker/modules/projects/view_projects.php',
+        'pages' => ['view_projects.php']
+    ],
+    'Rigs Management' => [
+        'icon' => 'bi-truck',
+        'url' => '/waterliftsolar_rig_tracker/modules/rigs/view_rigs.php',
+        'pages' => ['view_rigs.php']
+    ],
+    'Reports' => [
+        'icon' => 'bi-file-earmark-text',
+        'url' => '/waterliftsolar_rig_tracker/reports/monthly_summary.php',
+        'pages' => ['monthly_summary.php']
+    ]
+];
+
+// Function to check if link is active
+function isActive($pages, $current_page) {
+    return in_array($current_page, $pages);
+}
+
+
+// Function to get correct URL
+function getUrl($url) {
+    // If URL is already absolute or starts with http, return as is
+    if (strpos($url, 'http') === 0 || strpos($url, '//') === 0) {
+        return $url;
+    }
+    
+    // Remove leading slash if present
+    $url = ltrim($url, '/');
+    
+    // Use BASE_URL for absolute paths
+    return BASE_URL . '/' . $url;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
@@ -95,9 +110,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
             background-color: var(--light-color);
             color: #333;
             overflow-x: hidden;
+            padding-top: var(--header-height); /* Added for sticky header */
         }
         
-        /* Top Navigation Bar */
+        /* Top Navigation Bar - FIXED AND STICKY */
         .top-navbar {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             height: var(--header-height);
@@ -180,7 +196,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             width: var(--sidebar-width);
             background: white;
             box-shadow: 3px 0 15px rgba(0, 0, 0, 0.05);
-            z-index: 100;
+            z-index: 1000;
             overflow-y: auto;
             transition: all 0.3s;
         }
@@ -238,11 +254,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
             font-size: 1.1rem;
         }
         
-        /* Main content area */
+        /* Main content area - FIXED FOR STICKY HEADER */
         .main-content {
             margin-top: var(--header-height);
             margin-left: var(--sidebar-width);
-            padding: 10px;
+            padding: 20px;
             min-height: calc(100vh - var(--header-height));
             transition: all 0.3s;
         }
@@ -266,11 +282,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
             margin-bottom: 5px;
         }
         
-        .page-header p {
-            color: #6c757d;
-            margin-bottom: 0;
-        }
-        
         /* Month selector */
         .month-selector {
             background: white;
@@ -283,36 +294,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
-        }
-        
-        .month-selector h3 {
-            margin: 0;
-            color: var(--primary-color);
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-        
-        .date-form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        
-        .date-form select {
-            padding: 8px 15px;
-            border: 1px solid #e3e6f0;
-            border-radius: 6px;
-            background: white;
-            color: #5a5c69;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .date-form select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.1);
         }
         
         /* Toggle sidebar button */
@@ -343,69 +324,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
             
             .main-content {
                 margin-left: 0;
+                padding: 15px;
             }
             
             .top-navbar .navbar-nav {
                 padding: 10px 0;
-            }
-            
-            .month-selector {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .date-form {
-                flex-direction: column;
-                width: 100%;
-            }
-            
-            .date-form select {
-                width: 100%;
-            }
-        }
-        
-        /* Custom scrollbar */
-        .sidebar::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .sidebar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        .sidebar::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
-        }
-        
-        .sidebar::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-        
-        /* Badge styles */
-        .badge {
-            font-weight: 500;
-            padding: 4px 8px;
-        }
-        
-        /* Alert styles */
-        .alert {
-            border-radius: 8px;
-            border: none;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-        
-        /* Print styles */
-        @media print {
-            .top-navbar,
-            .sidebar,
-            .no-print {
-                display: none !important;
-            }
-            
-            .main-content {
-                margin: 0;
-                padding: 0;
             }
         }
     </style>
@@ -439,6 +362,19 @@ $current_page = basename($_SERVER['PHP_SELF']);
             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
+            
+            // Auto-close mobile sidebar when clicking outside
+            document.addEventListener('click', function(event) {
+                const sidebar = document.querySelector('.sidebar');
+                const sidebarToggle = document.querySelector('.sidebar-toggle');
+                
+                if (window.innerWidth <= 992 && 
+                    !sidebar.contains(event.target) && 
+                    !sidebarToggle.contains(event.target) && 
+                    sidebar.classList.contains('show')) {
+                    sidebar.classList.remove('show');
+                }
+            });
         });
     </script>
 </head>
@@ -451,7 +387,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 <button class="sidebar-toggle me-3 d-lg-none" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <a class="navbar-brand" href="index.php">
+                <a class="navbar-brand" href="<?php echo getUrl('index.php'); ?>">
                     <i class="bi bi-speedometer2"></i>
                     <?php echo SITE_NAME; ?>
                 </a>
@@ -465,26 +401,21 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <!-- Right side content -->
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
-                    <!-- Current month/year indicator -->
-                    <li class="nav-item me-3 d-none d-lg-block">
-                        <span class="nav-link text-white">
-                            <i class="bi bi-calendar3 me-1"></i>
-                            <?php echo date('F Y', strtotime("$selected_year-$selected_month-01")); ?>
-                        </span>
-                    </li>
                     
-                    <!-- Notifications (optional) -->
-                    <li class="nav-item dropdown me-3">
-                        <a class="nav-link" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-bell"></i>
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                0
-                            </span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><h6 class="dropdown-header">No new notifications</h6></li>
-                        </ul>
-                    </li>
+                    <!-- Current month/year indicator -->
+<li class="nav-item me-3 d-none d-lg-block">
+    <span class="nav-link text-white">
+        <i class="bi bi-calendar3 me-1"></i>
+        <?php 
+        // Check if variables are set, otherwise use current month/year
+        if (isset($selected_year) && isset($selected_month)) {
+            echo date('F Y', strtotime("$selected_year-$selected_month-01"));
+        } else {
+            echo date('F Y');
+        }
+        ?>
+    </span>
+</li>
                     
                     <!-- User dropdown -->
                     <li class="nav-item dropdown user-dropdown">
@@ -513,7 +444,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>Profile</a></li>
                             <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Settings</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                            <li><a class="dropdown-item text-danger" href="<?php echo getUrl('logout.php'); ?>"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -530,64 +461,15 @@ $current_page = basename($_SERVER['PHP_SELF']);
         
         <nav class="sidebar-menu">
             <ul class="nav flex-column">
+                <?php foreach ($nav_items as $label => $item): ?>
                 <li class="nav-item">
-                    <a class="nav-link <?php echo $current_page == 'index.php' ? 'active' : ''; ?>" 
-                       href="index.php">
-                        <i class="bi bi-speedometer2"></i>
-                        Dashboard
+                    <a class="nav-link <?php echo isActive($item['pages'], $current_page) ? 'active' : ''; ?>" 
+                       href="<?php echo getUrl($item['url']); ?>">
+                        <i class="bi <?php echo $item['icon']; ?>"></i>
+                        <?php echo $label; ?>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link <?php echo $current_page == 'add_project.php' ? 'active' : ''; ?>" 
-                       href="modules\projects\add_project.php">
-                        <i class="bi bi-plus-circle"></i>
-                        Add Project
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?php echo $current_page == 'view_projects.php' ? 'active' : ''; ?>" 
-                       href="modules/projects/view_projects.php">
-                        <i class="bi bi-list-check"></i>
-                        View Projects
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?php echo $current_page == 'view_rigs.php' ? 'active' : ''; ?>" 
-                       href="modules/rigs/view_rigs.php">
-                        <i class="bi bi-truck"></i>
-                        Rigs Management
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?php echo $current_page == 'monthly_summary.php' ? 'active' : ''; ?>" 
-                       href="reports/monthly_summary.php">
-                        <i class="bi bi-file-earmark-text"></i>
-                        Reports
-                    </a>
-                </li>
-                
-                <?php if ($user_role == 'admin'): ?>
-                <li class="nav-item mt-3">
-                    <div class="nav-link text-uppercase small text-muted mb-2">
-                        <i class="bi bi-shield-lock"></i>
-                        Administration
-                    </div>
-                    <ul class="nav flex-column ps-4">
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="bi bi-people"></i>
-                                User Management
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">
-                                <i class="bi bi-gear"></i>
-                                System Settings
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                <?php endif; ?>
+                <?php endforeach; ?>
                 
                 <li class="nav-item mt-auto">
                     <hr>
@@ -604,11 +486,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Month/Year selector (only on dashboard pages) -->
-        <?php 
-        $dashboard_pages = ['index.php', 'monthly_summary.php', 'rig_comparison.php'];
-        if (in_array($current_page, $dashboard_pages)): 
-        ?>
+        <?php if (in_array($current_page, $dashboard_pages)): ?>
         <div class="month-selector">
             <div>
                 <h3>Monthly Performance: <?php echo date('F Y', strtotime("$selected_year-$selected_month-01")); ?></h3>
@@ -634,11 +512,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 <?php endif; ?>
             </form>
         </div>
-        <?php endif; ?>
-        
-        <!-- Page Header (for non-dashboard pages) -->
-        <?php if (!in_array($current_page, $dashboard_pages)): ?>
-        <div class="page-header">
+        <?php else: ?>
+        <!-- <div class="page-header">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h1><?php 
@@ -646,27 +521,26 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         $page_title = str_replace('_', ' ', $page_title);
                         echo ucwords($page_title);
                     ?></h1>
-                    <p><?php
-                        // Custom descriptions for each page
-                        $descriptions = [
-                            'add_project' => 'Add new drilling project with complete financial details',
-                            'view_projects' => 'Browse, search, and manage all drilling projects',
-                            'view_rigs' => 'Manage drilling rigs and their configurations',
-                            'monthly_summary' => 'Detailed financial reports and performance analysis'
-                        ];
-                        $page_key = basename($_SERVER['PHP_SELF'], '.php');
-                        echo $descriptions[$page_key] ?? 'WaterLiftSolar Rig Performance System';
+                    <p><?php 
+                        // $descriptions = [
+                        //     'add_project' => 'Add new drilling project with complete financial details',
+                        //     'view_projects' => 'Browse, search, and manage all drilling projects',
+                        //     'view_rigs' => 'Manage drilling rigs and their configurations',
+                        //     'monthly_summary' => 'Detailed financial reports and performance analysis'
+                        // ];
+                        // $page_key = basename($_SERVER['PHP_SELF'], '.php');
+                        // echo $descriptions[$page_key] ?? 'WaterLiftSolar Rig Performance System';
                     ?></p>
                 </div>
                 <div>
-                    <?php if ($current_page == 'view_projects.php'): ?>
-                        <a href="add_project.php" class="btn btn-primary">
+                    <!-- <?php if ($current_page == 'view_projects.php'): ?>
+                        <a href="<?php echo getUrl('modules/projects/add_project.php'); ?>" class="btn btn-primary">
                             <i class="bi bi-plus-circle me-1"></i> Add New Project
                         </a>
-                    <?php endif; ?>
-                </div>
+                    <?php endif; ?> -->
+                <!-- </div>
             </div>
-        </div>
+        </div> -->
         <?php endif; ?>
         
-        <!-- Content will be inserted here -->
+        <!-- Content will be loaded here -->

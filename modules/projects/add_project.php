@@ -1,5 +1,11 @@
 <?php
-require_once '../../includes/header.php';
+
+// view_projects.php
+require_once '../../config.php';
+require_once ROOT_PATH . '/includes/init.php';
+require_once ROOT_PATH . '/includes/functions.php';
+require_once ROOT_PATH . '/includes/header.php';
+
 
 $message = '';
 $message_type = '';
@@ -105,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name");
 ?>
 
-<main class="main-content">
+<main class="container-fluid mt-4">
     <!-- Page Header -->
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center">

@@ -1,5 +1,15 @@
 <?php
-require_once '../../includes/header.php';
+// 1. Load config.php
+require_once '../../config.php';
+
+// 2. Load init.php
+require_once ROOT_PATH . '/includes/init.php';
+
+// 3. Load functions.php
+require_once ROOT_PATH . '/includes/functions.php';
+
+// 4. Load header.php
+require_once ROOT_PATH . '/includes/header.php';
 
 // Check user permissions
 if (!hasRole('admin') && !hasRole('manager')) {
@@ -40,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 ?>
 
-<main class="main-content">
+<main class="container-fluid mt-4">
     <!-- Page Header -->
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center">
