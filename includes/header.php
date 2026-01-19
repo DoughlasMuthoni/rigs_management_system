@@ -1,6 +1,4 @@
 <?php
-// includes/header.php
-// require_once '../config.php';
 
 // Security check
 if (!function_exists('isLoggedIn') || !isLoggedIn()) {
@@ -59,12 +57,6 @@ $nav_items = [
 function isActive($pages, $current_page) {
     return in_array($current_page, $pages);
 }
-
-
-// includes/header.php
-
-// Function to get correct URL - FIXED VERSION
-// includes/header.php
 
 // Function to get correct URL - FIXED VERSION with proper protocol
 function getUrl($relative_path) {

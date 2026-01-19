@@ -138,7 +138,6 @@ foreach ($monthly_summary as $rig) {
     $chart_profit[] = $rig['profit'];
 }
 ?>
-?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
@@ -740,7 +739,7 @@ foreach ($monthly_summary as $rig) {
                 </div>
                 <div class="card-body">
                     <div class="chart-area">
-                        <canvas id="performanceChart" height="70"></canvas>
+                        <canvas id="performanceChart" height="300"></canvas>
                     </div>
                 </div>
             </div>

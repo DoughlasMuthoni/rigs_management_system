@@ -59,4 +59,5 @@ if (file_exists($functions_path)) {
         error_log("Functions.php not found at: " . $functions_path);
     }
 }
+
 ?>
