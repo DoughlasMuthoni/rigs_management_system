@@ -228,12 +228,12 @@ $rigs = fetchAll("SELECT * FROM rigs ORDER BY rig_name");
                                                 <a href="project_details.php?id=<?php echo $project['id']; ?>" 
                                                    class="btn btn-outline-primary" 
                                                    data-bs-toggle="tooltip" title="View Details">
-                                                    <i class="fas fa-eye"></i>
+                                                    <i class="bi bi-eye"></i>
                                                 </a>
                                                 <a href="edit_project.php?id=<?php echo $project['id']; ?>" 
                                                    class="btn btn-outline-secondary"
                                                    data-bs-toggle="tooltip" title="Edit Project">
-                                                    <i class="fas fa-edit"></i>
+                                                    <i class="bi bi-pencil"></i>
                                                 </a>
                                             </div>
                                         </td>

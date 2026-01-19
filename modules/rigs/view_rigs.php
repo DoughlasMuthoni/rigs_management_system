@@ -370,7 +370,7 @@ $rigs = fetchAll($sql);
                                 <small class="text-muted">Check all drilling projects</small>
                             </div>
                         </a>
-                        <a href="../reports/monthly_summary.php" class="list-group-item list-group-item-action d-flex align-items-center">
+                        <a href="../reports/monthly_report.php" class="list-group-item list-group-item-action d-flex align-items-center">
                             <i class="bi bi-graph-up text-info me-3"></i>
                             <div>
                                 <h6 class="mb-0">Performance Reports</h6>

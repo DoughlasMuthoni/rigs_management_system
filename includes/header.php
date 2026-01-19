@@ -18,34 +18,41 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Dashboard pages that show month selector
 $dashboard_pages = ['index.php', 'monthly_summary.php', 'rig_comparison.php'];
 
-// Navigation structure - removed unwanted items
-// Navigation structure - removed unwanted items
+
+// Navigation structure - use relative paths
 $nav_items = [
     'Dashboard' => [
         'icon' => 'bi-speedometer2',
-        'url' => '/waterliftsolar_rig_tracker/index.php',
+        'url' => 'index.php',  // Relative path
         'pages' => ['index.php']
     ],
     'Add Project' => [
         'icon' => 'bi-plus-circle',
-        'url' => '/waterliftsolar_rig_tracker/modules/projects/add_project.php',
+        'url' => 'modules/projects/add_project.php',  // Relative path
         'pages' => ['add_project.php']
     ],
     'View Projects' => [
         'icon' => 'bi-list-check',
-        'url' => '/waterliftsolar_rig_tracker/modules/projects/view_projects.php',
+        'url' => 'modules/projects/view_projects.php',  // Relative path
         'pages' => ['view_projects.php']
     ],
     'Rigs Management' => [
         'icon' => 'bi-truck',
-        'url' => '/waterliftsolar_rig_tracker/modules/rigs/view_rigs.php',
+        'url' => 'modules/rigs/view_rigs.php',  // Relative path
         'pages' => ['view_rigs.php']
     ],
     'Reports' => [
         'icon' => 'bi-file-earmark-text',
-        'url' => '/waterliftsolar_rig_tracker/reports/monthly_summary.php',
+        'url' => 'reports/monthly_summary.php',  // Relative path
         'pages' => ['monthly_summary.php']
-    ]
+    ],
+
+    'Rig Comparison' => [
+    'icon' => 'bi-bar-chart-line',
+    'url' => 'rig_comparison.php',
+    'pages' => ['rig_comparison.php']
+],
+
 ];
 
 // Function to check if link is active
@@ -54,18 +61,56 @@ function isActive($pages, $current_page) {
 }
 
 
-// Function to get correct URL
-function getUrl($url) {
-    // If URL is already absolute or starts with http, return as is
-    if (strpos($url, 'http') === 0 || strpos($url, '//') === 0) {
-        return $url;
+// includes/header.php
+
+// Function to get correct URL - FIXED VERSION
+// includes/header.php
+
+// Function to get correct URL - FIXED VERSION with proper protocol
+function getUrl($relative_path) {
+    // Remove any leading slashes
+    $relative_path = ltrim($relative_path, '/');
+    
+    // If it's already a full URL, return it
+    if (filter_var($relative_path, FILTER_VALIDATE_URL)) {
+        return $relative_path;
     }
     
-    // Remove leading slash if present
-    $url = ltrim($url, '/');
+    // Get current protocol (http or https)
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
     
-    // Use BASE_URL for absolute paths
-    return BASE_URL . '/' . $url;
+    // Get the host
+    $host = $_SERVER['HTTP_HOST'];
+    
+    // Get the base directory from current request
+    $base_dir = dirname($_SERVER['SCRIPT_NAME']);
+    
+    // For your specific project structure
+    $project_folder = '/waterliftsolar_rig_tracker';
+    
+    // Build the base URL
+    $base_url = rtrim($protocol . $host . $project_folder, '/');
+    
+    // Remove duplicate base folder if present in relative path
+    if (strpos($relative_path, 'waterliftsolar_rig_tracker/') === 0) {
+        $relative_path = substr($relative_path, strlen('waterliftsolar_rig_tracker/'));
+    }
+    
+    // Return complete URL
+    return $base_url . '/' . ltrim($relative_path, '/');
+}
+
+// Alternative: Even simpler version
+function getAbsoluteUrl($path) {
+    // Always use http://localhost for your XAMPP environment
+    $base = 'http://localhost/waterliftsolar_rig_tracker';
+    
+    // Remove duplicate project folder if present
+    if (strpos($path, '/waterliftsolar_rig_tracker/') === 0) {
+        $path = substr($path, strlen('/waterliftsolar_rig_tracker'));
+    }
+    
+    return $base . '/' . ltrim($path, '/');
 }
 ?>
 <!DOCTYPE html>

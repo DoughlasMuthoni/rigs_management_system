@@ -1,5 +1,15 @@
 <?php
-require_once '../includes/header.php';
+// 1. Load config.php
+require_once '../../config.php';
+
+// 2. Load init.php
+require_once ROOT_PATH . '/includes/init.php';
+
+// 3. Load functions.php
+require_once ROOT_PATH . '/includes/functions.php';
+
+// 4. Load header.php
+require_once ROOT_PATH . '/includes/header.php';
 
 // Get parameters
 $rig_id = isset($_GET['rig']) ? intval($_GET['rig']) : 0;
@@ -76,7 +86,7 @@ foreach ($projects as $project) {
 }
 ?>
 
-<main class="main-content">
+<main class="container-fluid mt-0">
     <!-- Page Header -->
     <div class="card shadow mb-4">
         <div class="card-body py-3">
@@ -92,7 +102,7 @@ foreach ($projects as $project) {
                     </p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="../index.php" class="btn btn-sm btn-outline-secondary">
+                    <a href="#" class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i>
                     </a>
                     <button onclick="window.print()" class="btn btn-sm btn-outline-primary">
@@ -110,7 +120,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-cash-coin text-primary fs-4"></i>
+                            <i class="bi bi-cash-coin text-primary fs-6"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Revenue</div>
@@ -126,7 +136,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-currency-dollar text-warning fs-4"></i>
+                            <i class="bi bi-currency-dollar text-warning fs-8"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Expenses</div>
@@ -142,7 +152,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-graph-up-arrow text-<?php echo $monthly_data['profit'] >= 0 ? 'success' : 'danger'; ?> fs-4"></i>
+                            <i class="bi bi-graph-up-arrow text-<?php echo $monthly_data['profit'] >= 0 ? 'success' : 'danger'; ?> fs-8"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Net Profit</div>
@@ -160,7 +170,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-percent text-info fs-4"></i>
+                            <i class="bi bi-percent text-info fs-8"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Margin</div>
@@ -176,7 +186,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-clipboard-check text-secondary fs-4"></i>
+                            <i class="bi bi-clipboard-check text-secondary fs-8"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Projects</div>
@@ -192,7 +202,7 @@ foreach ($projects as $project) {
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            <i class="bi bi-calendar3 text-dark fs-4"></i>
+                            <i class="bi bi-calendar3 text-dark fs-8"></i>
                         </div>
                         <div>
                             <div class="small text-muted">Avg/Project</div>
@@ -391,11 +401,11 @@ foreach ($projects as $project) {
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
-                                        <a href="../modules/projects/project_details.php?id=<?php echo $project['id']; ?>" 
+                                        <a href="#" 
                                            class="btn btn-outline-info btn-sm" data-bs-toggle="tooltip" title="View">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <a href="../modules/projects/edit_project.php?id=<?php echo $project['id']; ?>" 
+                                        <a href="#" 
                                            class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -593,4 +603,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 </style>
 
-<?php require_once '../includes/footer.php'; ?>
+<?php require_once '../../includes/footer.php'; ?>

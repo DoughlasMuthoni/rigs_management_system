@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <i class="bi bi-calendar me-1"></i>Purchase Date
                                 </label>
                                 <input type="date" class="form-control" id="purchase_date" name="purchase_date" 
-                                       value="<?php echo $rig['purchase_date']; ?>">
+       value="<?php echo isset($rig['purchase_date']) ? $rig['purchase_date'] : ''; ?>">
                             </div>
                         </div>
                         
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <label for="description" class="form-label">
                                 <i class="bi bi-card-text me-1"></i>Description
                             </label>
-                            <textarea class="form-control" id="description" name="description" rows="4"><?php echo $rig['description']; ?></textarea>
+                            <textarea class="form-control" id="description" name="description" rows="4"><?php echo isset($rig['description']) ? htmlspecialchars($rig['description']) : ''; ?></textarea>
                         </div>
                         
                         <div class="d-flex justify-content-between">
