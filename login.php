@@ -170,13 +170,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <button type="submit" class="btn-login">Login</button>
         </form>
         
-        <div class="login-footer">
+        <!-- <div class="login-footer">
             <p><strong>Default Login Credentials:</strong></p>
             <div class="credentials">
                 Username: admin<br>
                 Password: admin123
             </div>
-        </div>
+        </div> -->
     </div>
 </body>
 </html>
