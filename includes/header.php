@@ -39,6 +39,11 @@ $nav_items = [
         'url' => 'modules/rigs/view_rigs.php',  // Relative path
         'pages' => ['view_rigs.php']
     ],
+     'Monthly Salaries' => [
+        'icon' => 'bi-calculator',
+        'url' => 'modules/salary/monthly_allocation.php',
+        'pages' => ['monthly_allocation.php']
+    ],
     'Reports' => [
         'icon' => 'bi-file-earmark-text',
         'url' => 'reports/monthly_summary.php',  // Relative path

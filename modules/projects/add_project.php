@@ -234,25 +234,54 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
                         </div>
                         
                         <!-- Salary Expenses -->
-                        <div class="card border-primary mb-4">
-                            <div class="card-header bg-primary text-white">
-                                <h6 class="m-0 fw-bold">
-                                    <i class="bi bi-people-fill me-2"></i>Salary Expenses
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <label for="salaries" class="form-label fw-bold">
-                                            <i class="bi bi-wallet2 text-success me-1"></i>Total Team Salaries (Ksh) *
-                                        </label>
-                                        <input type="number" class="form-control" id="salaries" name="salaries" 
-                                               required step="0.01" min="0">
-                                        <div class="form-text">Total salary cost for the entire team</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                       <!-- In add_project.php, modify the salaries section -->
+<div class="card border-primary mb-4">
+    <div class="card-header bg-primary text-white">
+        <h6 class="m-0 fw-bold">
+            <i class="bi bi-people-fill me-2"></i>Salary Information
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>New Salary Management System:</strong><br>
+                    Team salaries are now managed monthly across all projects. 
+                    For this project, you can:
+                    <ul class="mb-0 mt-2">
+                        <li>Leave salary as 0 and allocate later via Monthly Salary Allocation</li>
+                        <li>Enter a temporary salary amount (will be replaced during monthly allocation)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <label for="salaries" class="form-label fw-bold">
+                    <i class="bi bi-wallet2 text-success me-1"></i>Temporary Project Salary (Ksh)
+                </label>
+                <input type="number" class="form-control" id="salaries" name="salaries" 
+                       step="0.01" min="0" value="0">
+                <div class="form-text">
+                    <small class="text-muted">
+                        <i class="bi bi-lightbulb"></i> 
+                        This will be replaced during monthly salary allocation
+                    </small>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="bg-light p-3 rounded">
+                    <h6 class="fw-bold">Monthly Salary Allocation</h6>
+                    <p class="small mb-2">Go to:</p>
+                    <a href="modules/salary/monthly_allocation.php" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-calculator me-1"></i>Monthly Salary Management
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
                         
                         <!-- Fuel Expenses -->
                         <div class="card border-warning mb-4">
