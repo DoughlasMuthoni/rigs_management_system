@@ -16,53 +16,165 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($action == 'allocate') {
         $totalSalary = floatval($_POST['total_salary']);
         $method = $_POST['allocation_method'];
+        $expense_date = date('Y-m-d');
         
-        if ($method == 'equal') {
-            $result = allocateSalariesToMonthlyProjects($month, $year, $totalSalary);
-        } elseif ($method == 'revenue') {
-            $result = allocateSalariesByRevenuePercentage($month, $year, $totalSalary);
-        }
-        
-        if ($result['success']) {
-            $message = $result['message'];
-            $message_type = 'success';
-        } else {
-            $message = $result['message'];
-            $message_type = 'error';
-        }
-    } elseif ($action == 'clear') {
-        // Clear allocations for the month
+        // Get completed projects for the month
         $projects = fetchAll("
-            SELECT p.id FROM projects p
+            SELECT p.id, p.project_code, p.payment_received
+            FROM projects p
             WHERE MONTH(p.completion_date) = $month 
             AND YEAR(p.completion_date) = $year
             AND p.status = 'completed'
         ");
         
-        foreach ($projects as $project) {
-            $updateSql = "UPDATE fixed_expenses 
-                         SET salaries = 0, 
-                             salary_source = 'project'
-                         WHERE project_id = {$project['id']}";
-            query($updateSql);
+        if (empty($projects)) {
+            $message = "No completed projects found for " . date('F Y', strtotime("$year-$month-01"));
+            $message_type = 'error';
+        } else {
+            $projectCount = count($projects);
+            
+            // Get Personnel expense type ID
+            $personnel_type = fetchOne("SELECT id FROM expense_types WHERE category = 'Personnel' LIMIT 1");
+            $expense_type_id = $personnel_type['id'] ?? 1;
+            
+            $allocated_count = 0;
+            
+            if ($method == 'equal') {
+                $salaryPerProject = $totalSalary / $projectCount;
+                
+                foreach ($projects as $project) {
+                    // Generate unique expense code
+                    $unique_expense_code = 'SAL-' . date('YmdHis') . '-' . $project['id'] . '-' . uniqid();
+                    
+                    $notes = "Monthly salary allocation for " . date('F Y', strtotime("$year-$month-01")) . 
+                             " - Equal distribution across $projectCount projects";
+                    
+                    $sql = "INSERT INTO expenses 
+                            (expense_code, project_id, expense_type_id, ref_number, expense_date, 
+                             amount, quantity, unit_price, notes, status, created_by, created_at) 
+                            VALUES (
+                                '" . escape($unique_expense_code) . "',
+                                " . $project['id'] . ",
+                                " . $expense_type_id . ",
+                                'MONTHLY-SALARY',
+                                '" . escape($expense_date) . "',
+                                " . $salaryPerProject . ",
+                                1,
+                                " . $salaryPerProject . ",
+                                '" . escape($notes) . "',
+                                'approved',
+                                " . $_SESSION['user_id'] . ",
+                                NOW()
+                            )";
+                    
+                    if (query($sql)) {
+                        $allocated_count++;
+                    }
+                }
+                
+                $message = "Allocated Ksh " . number_format($totalSalary, 2) . " equally across " . $allocated_count . " projects";
+                $message_type = 'success';
+                
+            } elseif ($method == 'revenue') {
+                $totalRevenue = array_sum(array_column($projects, 'payment_received'));
+                
+                if ($totalRevenue <= 0) {
+                    $message = "Cannot allocate by revenue: Total project revenue is 0";
+                    $message_type = 'error';
+                } else {
+                    foreach ($projects as $project) {
+                        $projectRevenue = $project['payment_received'];
+                        $allocatedSalary = ($projectRevenue / $totalRevenue) * $totalSalary;
+                        
+                        // Generate unique expense code
+                        $unique_expense_code = 'SAL-' . date('YmdHis') . '-' . $project['id'] . '-' . uniqid();
+                        
+                        $percentage = number_format(($projectRevenue/$totalRevenue)*100, 1);
+                        $notes = "Monthly salary allocation for " . date('F Y', strtotime("$year-$month-01")) . 
+                                 " - Revenue-based allocation ($percentage% of revenue)";
+                        
+                        $sql = "INSERT INTO expenses 
+                                (expense_code, project_id, expense_type_id, ref_number, expense_date, 
+                                 amount, quantity, unit_price, notes, status, created_by, created_at) 
+                                VALUES (
+                                    '" . escape($unique_expense_code) . "',
+                                    " . $project['id'] . ",
+                                    " . $expense_type_id . ",
+                                    'MONTHLY-SALARY',
+                                    '" . escape($expense_date) . "',
+                                    " . $allocatedSalary . ",
+                                    1,
+                                    " . $allocatedSalary . ",
+                                    '" . escape($notes) . "',
+                                    'approved',
+                                    " . $_SESSION['user_id'] . ",
+                                    NOW()
+                                )";
+                        
+                        if (query($sql)) {
+                            $allocated_count++;
+                        }
+                    }
+                    
+                    $message = "Allocated Ksh " . number_format($totalSalary, 2) . " based on revenue percentages across " . $allocated_count . " projects";
+                    $message_type = 'success';
+                }
+            }
         }
         
+    } elseif ($action == 'clear') {
+        // Clear salary allocations for the month
+        $sql = "DELETE FROM expenses 
+                WHERE ref_number = 'MONTHLY-SALARY' 
+                AND MONTH(expense_date) = $month 
+                AND YEAR(expense_date) = $year";
+        
+        $deleted = query($sql);
         $message = "Cleared salary allocations for " . date('F Y', strtotime("$year-$month-01"));
         $message_type = 'warning';
     }
 }
 
-// Get monthly summary
-$summary = getMonthlySalarySummary($current_month, $current_year);
+// Get monthly summary using new expenses system
+function getMonthlySalarySummary($month, $year) {
+    $summary = [
+        'month' => $month,
+        'year' => $year,
+        'total_monthly_salary' => 0,
+        'allocation_method' => 'none',
+        'allocated' => false
+    ];
+    
+    // Check if any monthly salary expenses exist for this month
+    $salary_expenses = fetchOne("
+        SELECT SUM(amount) as total 
+        FROM expenses 
+        WHERE ref_number = 'MONTHLY-SALARY' 
+        AND MONTH(expense_date) = $month 
+        AND YEAR(expense_date) = $year
+    ");
+    
+    if ($salary_expenses && $salary_expenses['total'] > 0) {
+        $summary['total_monthly_salary'] = $salary_expenses['total'];
+        $summary['allocated'] = true;
+    }
+    
+    return $summary;
+}
 
-// Get projects for the month
+// Get projects for the month with allocated salary from new system
 $projects = fetchAll("
     SELECT p.*, r.rig_name,
-           COALESCE(fe.salaries, 0) as allocated_salary,
-           COALESCE(fe.salary_source, 'project') as salary_source
+           COALESCE((
+               SELECT SUM(e.amount) 
+               FROM expenses e 
+               WHERE e.project_id = p.id 
+               AND e.ref_number = 'MONTHLY-SALARY'
+               AND MONTH(e.expense_date) = $current_month 
+               AND YEAR(e.expense_date) = $current_year
+           ), 0) as allocated_salary
     FROM projects p
     LEFT JOIN rigs r ON p.rig_id = r.id
-    LEFT JOIN fixed_expenses fe ON p.id = fe.project_id
     WHERE MONTH(p.completion_date) = $current_month 
     AND YEAR(p.completion_date) = $current_year
     AND p.status = 'completed'
@@ -72,7 +184,13 @@ $projects = fetchAll("
 $totalRevenue = array_sum(array_column($projects, 'payment_received'));
 $totalAllocated = array_sum(array_column($projects, 'allocated_salary'));
 $projectCount = count($projects);
+
+// Get summary
+$summary = getMonthlySalarySummary($current_month, $current_year);
 ?>
+
+<!-- REST OF THE HTML/PHP FILE REMAINS EXACTLY THE SAME AS YOUR ORIGINAL -->
+<!-- Just copy everything from <main class="container-fluid mt-4"> to the end -->
 
 <main class="container-fluid mt-4">
     <div class="row">
@@ -271,30 +389,30 @@ $projectCount = count($projects);
                                                 <th>Project Name</th>
                                                 <th>Rig</th>
                                                 <th class="text-end">Revenue</th>
-                                                <th class="text-end">Current Salary</th>
+                                                <th class="text-end">Allocated Salary</th>
                                                 <th>Salary Source</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($projects as $project): ?>
-                                                <tr class="small">
-                                                    <td>
-                                                        <span class="badge bg-secondary"><?php echo $project['project_code']; ?></span>
-                                                    </td>
-                                                    <td><?php echo htmlspecialchars($project['project_name']); ?></td>
-                                                    <td><?php echo $project['rig_name']; ?></td>
-                                                    <td class="text-end"><?php echo formatCurrency($project['payment_received']); ?></td>
-                                                    <td class="text-end">
-                                                        <span class="fw-bold <?php echo $project['allocated_salary'] > 0 ? 'text-success' : 'text-muted'; ?>">
-                                                            <?php echo formatCurrency($project['allocated_salary']); ?>
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-<?php echo $project['salary_source'] == 'monthly' ? 'success' : 'info'; ?>">
-                                                            <?php echo ucfirst($project['salary_source']); ?>
-                                                        </span>
-                                                    </td>
-                                                </tr>
+                                              <tr class="small">
+    <td>
+        <span class="badge bg-secondary"><?php echo $project['project_code']; ?></span>
+    </td>
+    <td><?php echo htmlspecialchars($project['project_name']); ?></td>
+    <td><?php echo $project['rig_name']; ?></td>
+    <td class="text-end"><?php echo formatCurrency($project['payment_received']); ?></td>
+    <td class="text-end">
+        <span class="fw-bold <?php echo $project['allocated_salary'] > 0 ? 'text-success' : 'text-muted'; ?>">
+            <?php echo formatCurrency($project['allocated_salary']); ?>
+        </span>
+    </td>
+    <td>
+        <span class="badge bg-<?php echo $project['allocated_salary'] > 0 ? 'success' : 'secondary'; ?>">
+            <?php echo $project['allocated_salary'] > 0 ? 'Allocated' : 'Not Allocated'; ?>
+        </span>
+    </td>
+</tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>

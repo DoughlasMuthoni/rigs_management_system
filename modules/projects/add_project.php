@@ -1,11 +1,9 @@
 <?php
-
-// view_projects.php
+// view_projects.php (simplified version)
 require_once '../../config.php';
 require_once ROOT_PATH . '/includes/init.php';
 require_once ROOT_PATH . '/includes/functions.php';
 require_once ROOT_PATH . '/includes/header.php';
-
 
 $message = '';
 $message_type = '';
@@ -18,23 +16,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Insert project
         $project_code = escape($_POST['project_code']);
         $project_name = escape($_POST['project_name']);
-        $client_name = escape($_POST['client_name']);
-        $rig_id = intval($_POST['rig_id']);
+        $customer_id = intval($_POST['customer_id']);
+        
+        // FIX: Handle empty rig_id properly - use NULL instead of 0
+        $rig_id = !empty($_POST['rig_id']) ? intval($_POST['rig_id']) : 'NULL';
+        
+        $depth = escape($_POST['depth']);
+        $project_type = escape($_POST['project_type']);
         $contract_amount = floatval($_POST['contract_amount']);
         $payment_received = floatval($_POST['payment_received']);
         $start_date = escape($_POST['start_date']);
         $completion_date = escape($_POST['completion_date']);
         $payment_date = escape($_POST['payment_date']);
         $notes = escape($_POST['notes']);
+        $estimate_cost = floatval($_POST['estimate_cost']);
         
+        // FIX: Handle NULL value in SQL without quotes
         $project_sql = "INSERT INTO projects (
-            project_code, project_name, client_name, rig_id, 
-            contract_amount, payment_received, start_date, 
-            completion_date, payment_date, notes, status
+            project_code, project_name, customer_id, rig_id, depth, project_type,
+            contract_amount, payment_received, start_date, completion_date, 
+            payment_date, notes, status, estimate_cost
         ) VALUES (
-            '$project_code', '$project_name', '$client_name', $rig_id,
+            '$project_code', '$project_name', $customer_id, $rig_id, '$depth', '$project_type',
             $contract_amount, $payment_received, '$start_date',
-            '$completion_date', '$payment_date', '$notes', 'completed'
+            '$completion_date', '$payment_date', '$notes', 'completed', $estimate_cost
         )";
         
         if (!query($project_sql)) {
@@ -43,61 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         $project_id = lastInsertId();
         
-        // Insert fixed expenses
-        $salaries = floatval($_POST['salaries']);
-        $fuel_rig = floatval($_POST['fuel_rig']);
-        $fuel_truck = floatval($_POST['fuel_truck']);
-        $fuel_pump = floatval($_POST['fuel_pump']);
-        $fuel_hired = floatval($_POST['fuel_hired']);
-        $casing_surface = floatval($_POST['casing_surface']);
-        $casing_screened = floatval($_POST['casing_screened']);
-        $casing_plain = floatval($_POST['casing_plain']);
-        
-        $expense_sql = "INSERT INTO fixed_expenses (
-            project_id, salaries, fuel_rig, fuel_truck, fuel_pump, 
-            fuel_hired, casing_surface, casing_screened, casing_plain
-        ) VALUES (
-            $project_id, $salaries, $fuel_rig, $fuel_truck, $fuel_pump,
-            $fuel_hired, $casing_surface, $casing_screened, $casing_plain
-        )";
-        
-        if (!query($expense_sql)) {
-            throw new Exception("Failed to save expenses: " . mysqli_error($conn));
-        }
-        
-        // Save consumables
-        if (isset($_POST['consumables_item']) && is_array($_POST['consumables_item'])) {
-            for ($i = 0; $i < count($_POST['consumables_item']); $i++) {
-                $item_name = escape($_POST['consumables_item'][$i]);
-                $amount = floatval($_POST['consumables_amount'][$i]);
-                
-                if (!empty($item_name) && $amount > 0) {
-                    $sql = "INSERT INTO consumables (project_id, item_name, amount) 
-                            VALUES ($project_id, '$item_name', $amount)";
-                    query($sql);
-                }
-            }
-        }
-        
-        // Save miscellaneous
-        if (isset($_POST['misc_item']) && is_array($_POST['misc_item'])) {
-            for ($i = 0; $i < count($_POST['misc_item']); $i++) {
-                $item_name = escape($_POST['misc_item'][$i]);
-                $amount = floatval($_POST['misc_amount'][$i]);
-                
-                if (!empty($item_name) && $amount > 0) {
-                    $sql = "INSERT INTO miscellaneous (project_id, item_name, amount) 
-                            VALUES ($project_id, '$item_name', $amount)";
-                    query($sql);
-                }
-            }
-        }
+      
         
         // Commit transaction
         query("COMMIT");
         
-        $message = "Project saved successfully! Project Profit: " . 
-                   formatCurrency(calculateProjectProfit($project_id));
+        $message = "Project saved successfully! Project ID: " . $project_id;
         $message_type = "success";
         
     } catch (Exception $e) {
@@ -117,7 +73,7 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h1>Add New Project</h1>
-                <p class="text-muted mb-0">Enter project details and expenses from finance summary</p>
+                <p class="text-muted mb-0">Enter basic project details. Expenses will be tracked separately.</p>
             </div>
             <div>
                 <a href="../../index.php" class="btn btn-outline-secondary">
@@ -164,27 +120,68 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
                             </div>
                             
                             <div class="col-md-6">
-                                <label for="client_name" class="form-label fw-bold">
-                                    <i class="bi bi-person text-primary me-1"></i>Client Name
+                                <label for="customer_id" class="form-label fw-bold">
+                                    <i class="bi bi-person text-primary me-1"></i>Customer *
                                 </label>
-                                <input type="text" class="form-control" id="client_name" name="client_name">
-                                <div class="form-text">Client or company name</div>
+                                <select class="form-select select2" id="customer_id" name="customer_id" required>
+                                    <option value="">Select Customer</option>
+                                    <?php 
+                                    $customers = getAllCustomers('active');
+                                    $selected_customer = isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0;
+                                    
+                                    foreach ($customers as $customer): 
+                                        $display_name = $customer['first_name'] . ' ' . $customer['last_name'];
+                                        if ($customer['company_name']) {
+                                            $display_name .= ' (' . $customer['company_name'] . ')';
+                                        }
+                                    ?>
+                                    <option value="<?php echo $customer['id']; ?>" 
+                                            <?php echo $selected_customer == $customer['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($display_name); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">
+                                    <a href="../customer/manage_customers.php?action=add" target="_blank" class="small">
+                                        <i class="bi bi-plus-circle"></i> Add new customer
+                                    </a>
+                                </div>
                             </div>
                             
                             <div class="col-md-6">
-                                <label for="rig_id" class="form-label fw-bold">
-                                    <i class="bi bi-truck text-primary me-1"></i>Assigned Rig *
+                                <label for="project_type" class="form-label fw-bold">
+                                    <i class="bi bi-gear text-primary me-1"></i>Project Type *
                                 </label>
-                                <select class="form-select" id="rig_id" name="rig_id" required>
-                                    <option value="">Select Rig</option>
-                                    <?php foreach ($rigs as $rig): ?>
-                                        <option value="<?php echo $rig['id']; ?>">
-                                            <?php echo $rig['rig_name']; ?> (<?php echo $rig['rig_code']; ?>)
-                                        </option>
-                                    <?php endforeach; ?>
+                                <select class="form-select" id="project_type" name="project_type" required>
+                                    <option value="Survey">Survey</option>
+                                    <option value="Drilling" selected>Drilling</option>
+                                    <option value="Test Pumping">Test Pumping</option>
+                                    <option value="Equipping">Equipping</option>
                                 </select>
-                                <div class="form-text">Select the rig used for this project</div>
                             </div>
+                            
+                            <div class="col-md-6">
+                                <label for="depth" class="form-label fw-bold">
+                                    <i class="bi bi-arrow-down text-primary me-1"></i>Depth (meters)
+                                </label>
+                                <input type="number" class="form-control" id="depth" name="depth" 
+                                       step="0.1" min="0" placeholder="e.g., 100.5">
+                            </div>
+                            
+                            <div class="col-md-6">
+    <label for="rig_id" class="form-label fw-bold">
+        <i class="bi bi-truck text-primary me-1"></i>Assigned Rig
+    </label>
+    <select class="form-select" id="rig_id" name="rig_id">
+        <option value="">-- No Rig Assigned --</option>
+        <?php foreach ($rigs as $rig): ?>
+            <option value="<?php echo $rig['id']; ?>">
+                <?php echo $rig['rig_name']; ?> (<?php echo $rig['rig_code']; ?>)
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <div class="form-text">Optional - projects can be completed without rig assignment</div>
+</div>
                             
                             <div class="col-md-6">
                                 <label for="contract_amount" class="form-label fw-bold">
@@ -202,6 +199,15 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
                                 <input type="number" class="form-control" id="payment_received" name="payment_received" 
                                        required step="0.01" min="0">
                                 <div class="form-text">Actual payment received from client</div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="estimate_cost" class="form-label fw-bold">
+                                    <i class="bi bi-calculator text-primary me-1"></i>Estimated Cost (Ksh)
+                                </label>
+                                <input type="number" class="form-control" id="estimate_cost" name="estimate_cost" 
+                                       step="0.01" min="0">
+                                <div class="form-text">Estimated total cost for planning purposes</div>
                             </div>
                             
                             <div class="col-md-4">
@@ -233,201 +239,13 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
                             </div>
                         </div>
                         
-                        <!-- Salary Expenses -->
-                       <!-- In add_project.php, modify the salaries section -->
-<div class="card border-primary mb-4">
-    <div class="card-header bg-primary text-white">
-        <h6 class="m-0 fw-bold">
-            <i class="bi bi-people-fill me-2"></i>Salary Information
-        </h6>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle me-2"></i>
-                    <strong>New Salary Management System:</strong><br>
-                    Team salaries are now managed monthly across all projects. 
-                    For this project, you can:
-                    <ul class="mb-0 mt-2">
-                        <li>Leave salary as 0 and allocate later via Monthly Salary Allocation</li>
-                        <li>Enter a temporary salary amount (will be replaced during monthly allocation)</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <label for="salaries" class="form-label fw-bold">
-                    <i class="bi bi-wallet2 text-success me-1"></i>Temporary Project Salary (Ksh)
-                </label>
-                <input type="number" class="form-control" id="salaries" name="salaries" 
-                       step="0.01" min="0" value="0">
-                <div class="form-text">
-                    <small class="text-muted">
-                        <i class="bi bi-lightbulb"></i> 
-                        This will be replaced during monthly salary allocation
-                    </small>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="bg-light p-3 rounded">
-                    <h6 class="fw-bold">Monthly Salary Allocation</h6>
-                    <p class="small mb-2">Go to:</p>
-                    <a href="modules/salary/monthly_allocation.php" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-calculator me-1"></i>Monthly Salary Management
-                    </a>
-                </div>
-            </div>
-        </div>
+                        <!-- Salary Information Only -->
+                        <div class="col-12">
+    <div class="alert alert-info mt-3">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Note:</strong> After saving this project, you can add expenses (including salaries) through the Expenses module.
     </div>
 </div>
-                        
-                        <!-- Fuel Expenses -->
-                        <div class="card border-warning mb-4">
-                            <div class="card-header bg-warning text-dark">
-                                <h6 class="m-0 fw-bold">
-                                    <i class="bi bi-fuel-pump me-2"></i>Fuel Expenses
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label for="fuel_rig" class="form-label fw-bold">
-                                            <i class="bi bi-truck text-warning me-1"></i>Rig Fuel (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="fuel_rig" name="fuel_rig" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="fuel_truck" class="form-label fw-bold">
-                                            <i class="bi bi-truck text-warning me-1"></i>Support Truck Fuel (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="fuel_truck" name="fuel_truck" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="fuel_pump" class="form-label fw-bold">
-                                            <i class="bi bi-droplet text-warning me-1"></i>Test Pumping Truck Fuel (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="fuel_pump" name="fuel_pump" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="fuel_hired" class="form-label fw-bold">
-                                            <i class="bi bi-car-front text-warning me-1"></i>Hired Vehicle Fuel (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="fuel_hired" name="fuel_hired" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Casing & Materials -->
-                        <div class="card border-info mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h6 class="m-0 fw-bold">
-                                    <i class="bi bi-pipe me-2"></i>Casing & Materials
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label for="casing_surface" class="form-label fw-bold">
-                                            <i class="bi bi-circle text-info me-1"></i>Surface Casings (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="casing_surface" name="casing_surface" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                    
-                                    <div class="col-md-4">
-                                        <label for="casing_screened" class="form-label fw-bold">
-                                            <i class="bi bi-grid-3x3 text-info me-1"></i>Screened Casings (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="casing_screened" name="casing_screened" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                    
-                                    <div class="col-md-4">
-                                        <label for="casing_plain" class="form-label fw-bold">
-                                            <i class="bi bi-circle-fill text-info me-1"></i>Plain Casings (Ksh)
-                                        </label>
-                                        <input type="number" class="form-control" id="casing_plain" name="casing_plain" 
-                                               step="0.01" min="0" value="0">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Consumables -->
-                        <div class="card border-success mb-4">
-                            <div class="card-header bg-success text-white">
-                                <h6 class="m-0 fw-bold">
-                                    <i class="bi bi-tools me-2"></i>Consumables
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="consumables-container">
-                                    <div class="row g-3 mb-3 align-items-end">
-                                        <div class="col-md-8">
-                                            <label class="form-label fw-bold">Item Name</label>
-                                            <input type="text" name="consumables_item[]" class="form-control" 
-                                                   placeholder="e.g., Drilling Bits, Grease, Safety Equipment">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label fw-bold">Amount (Ksh)</label>
-                                            <input type="number" name="consumables_amount[]" class="form-control" 
-                                                   step="0.01" min="0" placeholder="0.00">
-                                        </div>
-                                        <div class="col-md-1">
-                                            <button type="button" class="btn btn-danger btn-sm w-100" onclick="removeItem(this)" disabled>
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="addConsumableItem()">
-                                    <i class="bi bi-plus-circle me-1"></i>Add Consumable Item
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Miscellaneous Expenses -->
-                        <div class="card border-secondary mb-4">
-                            <div class="card-header bg-secondary text-white">
-                                <h6 class="m-0 fw-bold">
-                                    <i class="bi bi-cart-plus me-2"></i>Miscellaneous Expenses
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="misc-container">
-                                    <div class="row g-3 mb-3 align-items-end">
-                                        <div class="col-md-8">
-                                            <label class="form-label fw-bold">Item Name</label>
-                                            <input type="text" name="misc_item[]" class="form-control" 
-                                                   placeholder="e.g., Accommodation, Transport, Client Meetings">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label fw-bold">Amount (Ksh)</label>
-                                            <input type="number" name="misc_amount[]" class="form-control" 
-                                                   step="0.01" min="0" placeholder="0.00">
-                                        </div>
-                                        <div class="col-md-1">
-                                            <button type="button" class="btn btn-danger btn-sm w-100" onclick="removeItem(this)" disabled>
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addMiscItem()">
-                                    <i class="bi bi-plus-circle me-1"></i>Add Miscellaneous Item
-                                </button>
-                            </div>
-                        </div>
                         
                         <!-- Form Actions -->
                         <div class="d-flex justify-content-between border-top pt-4">
@@ -439,9 +257,11 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
                                     <i class="bi bi-x-circle me-2"></i>Cancel
                                 </a>
                             </div>
-                            <button type="submit" class="btn btn-primary px-4">
-                                <i class="bi bi-save me-2"></i>Save Project
-                            </button>
+                            <div>
+                                <button type="submit" class="btn btn-primary px-4">
+                                    <i class="bi bi-save me-2"></i>Save Project
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -450,86 +270,10 @@ $rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name")
     </div>
 </main>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
-// Counter for dynamic items
-let consumableCount = 1;
-let miscCount = 1;
-
-function addConsumableItem() {
-    const container = document.getElementById('consumables-container');
-    const div = document.createElement('div');
-    div.className = 'row g-3 mb-3 align-items-end';
-    div.innerHTML = `
-        <div class="col-md-8">
-            <label class="form-label fw-bold">Item Name</label>
-            <input type="text" name="consumables_item[]" class="form-control" 
-                   placeholder="e.g., Drilling Bits, Grease, Safety Equipment">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold">Amount (Ksh)</label>
-            <input type="number" name="consumables_amount[]" class="form-control" 
-                   step="0.01" min="0" placeholder="0.00">
-        </div>
-        <div class="col-md-1">
-            <button type="button" class="btn btn-danger btn-sm w-100" onclick="removeItem(this)">
-                <i class="bi bi-trash"></i>
-            </button>
-        </div>
-    `;
-    container.appendChild(div);
-    consumableCount++;
-    
-    // Enable delete button on first item
-    if (container.children.length > 1) {
-        container.firstElementChild.querySelector('.btn-danger').disabled = false;
-    }
-}
-
-function addMiscItem() {
-    const container = document.getElementById('misc-container');
-    const div = document.createElement('div');
-    div.className = 'row g-3 mb-3 align-items-end';
-    div.innerHTML = `
-        <div class="col-md-8">
-            <label class="form-label fw-bold">Item Name</label>
-            <input type="text" name="misc_item[]" class="form-control" 
-                   placeholder="e.g., Accommodation, Transport, Client Meetings">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold">Amount (Ksh)</label>
-            <input type="number" name="misc_amount[]" class="form-control" 
-                   step="0.01" min="0" placeholder="0.00">
-        </div>
-        <div class="col-md-1">
-            <button type="button" class="btn btn-danger btn-sm w-100" onclick="removeItem(this)">
-                <i class="bi bi-trash"></i>
-            </button>
-        </div>
-    `;
-    container.appendChild(div);
-    miscCount++;
-    
-    // Enable delete button on first item
-    if (container.children.length > 1) {
-        container.firstElementChild.querySelector('.btn-danger').disabled = false;
-    }
-}
-
-function removeItem(button) {
-    const row = button.closest('.row');
-    const container = row.parentElement;
-    
-    // Don't remove if it's the last item
-    if (container.children.length > 1) {
-        row.remove();
-        
-        // Disable delete button if only one item left
-        if (container.children.length === 1) {
-            container.firstElementChild.querySelector('.btn-danger').disabled = true;
-        }
-    }
-}
-
 // Set default dates
 document.addEventListener('DOMContentLoaded', function() {
     const today = new Date().toISOString().split('T')[0];
@@ -547,23 +291,66 @@ document.addEventListener('DOMContentLoaded', function() {
         startDate.value = weekAgo.toISOString().split('T')[0];
     }
     
-    // Auto-calculate profit on form submit
+    // Initialize Select2 for customer dropdown
+    $('.select2').select2({
+        placeholder: "Select customer",
+        allowClear: true,
+        width: '100%'
+    });
+    
+    // Auto-fill customer details if customer is selected from URL parameter
+    <?php if ($selected_customer > 0): ?>
+    $('#customer_id').val(<?php echo $selected_customer; ?>).trigger('change');
+    <?php endif; ?>
+    
+    // Auto-generate project code
+    $('#project_code').on('focus', function() {
+        if (!$(this).val()) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const random = Math.floor(Math.random() * 1000);
+            const code = `WL-${year}${month}${day}-${random}`;
+            $(this).val(code);
+        }
+    });
+    
+    // Form validation
     document.getElementById('projectForm').addEventListener('submit', function(e) {
-        // You can add validation or calculations here
         const contractAmount = parseFloat(document.getElementById('contract_amount').value) || 0;
         const paymentReceived = parseFloat(document.getElementById('payment_received').value) || 0;
+        const estimateCost = parseFloat(document.getElementById('estimate_cost').value) || 0;
         
+        // Validate payment received doesn't exceed contract amount
         if (paymentReceived > contractAmount) {
             if (!confirm('Payment received is greater than contract amount. Continue anyway?')) {
                 e.preventDefault();
+                return false;
             }
         }
+        
+        // Validate completion date is after start date
+        const startDateVal = document.getElementById('start_date').value;
+        const completionDateVal = document.getElementById('completion_date').value;
+        
+        if (startDateVal && completionDateVal) {
+            const start = new Date(startDateVal);
+            const completion = new Date(completionDateVal);
+            
+            if (completion < start) {
+                alert('Completion date must be after start date!');
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        return true;
     });
 });
 </script>
 
 <style>
-    /* Custom styles for the form */
     .card {
         border: 1px solid #e3e6f0;
         border-radius: 10px;
@@ -624,21 +411,17 @@ document.addEventListener('DOMContentLoaded', function() {
         margin-bottom: 0;
     }
     
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        .btn-primary {
-            width: 100%;
-            margin-top: 10px;
-        }
-        
-        .d-flex {
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .col-md-1 .btn-danger {
-            height: 38px;
-        }
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        border: 1px solid #ced4da;
+    }
+    
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 36px;
+    }
+    
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px;
     }
 </style>
 

@@ -33,6 +33,9 @@ require_once ROOT_PATH . '/includes/header.php';
 $rig_id = isset($_GET['rig']) ? intval($_GET['rig']) : 0;
 $month = isset($_GET['month']) ? intval($_GET['month']) : $selected_month;
 $year = isset($_GET['year']) ? intval($_GET['year']) : $selected_year;
+// Add this after line 44 (after $search variable)
+$period = isset($_GET['period']) ? $_GET['period'] : 'month'; // month, quarter, year
+$quarter = isset($_GET['quarter']) ? intval($_GET['quarter']) : 0;
 $search = isset($_GET['search']) ? escape($_GET['search']) : '';
 
 // Build query
@@ -46,11 +49,49 @@ if ($rig_id > 0) {
 if (!empty($search)) {
     $where_conditions[] = "(p.project_code LIKE '%$search%' OR 
                            p.project_name LIKE '%$search%' OR 
-                           p.client_name LIKE '%$search%')";
+                           CONCAT(c.first_name, ' ', c.last_name) LIKE '%$search%' OR
+                           c.company_name LIKE '%$search%')";
 }
 
-if ($month > 0 && $year > 0) {
-    $where_conditions[] = "YEAR(p.completion_date) = $year AND MONTH(p.completion_date) = $month";
+// Handle period filters
+if ($year > 0) {
+    switch ($period) {
+        case 'month':
+            if ($month > 0) {
+                $where_conditions[] = "YEAR(p.completion_date) = $year AND MONTH(p.completion_date) = $month";
+            } else {
+                $where_conditions[] = "YEAR(p.completion_date) = $year";
+            }
+            break;
+            
+        case 'quarter':
+            if ($quarter > 0) {
+                $start_month = (($quarter - 1) * 3) + 1;
+                $end_month = $start_month + 2;
+                $where_conditions[] = "YEAR(p.completion_date) = $year 
+                                      AND MONTH(p.completion_date) BETWEEN $start_month AND $end_month";
+            } else {
+                $where_conditions[] = "YEAR(p.completion_date) = $year";
+            }
+            break;
+            
+        case 'year':
+            $where_conditions[] = "YEAR(p.completion_date) = $year";
+            break;
+            
+        case 'all':
+            // No year filter for "all time"
+            break;
+            
+        default:
+            // Monthly default
+            if ($month > 0 && $year > 0) {
+                $where_conditions[] = "YEAR(p.completion_date) = $year AND MONTH(p.completion_date) = $month";
+            } elseif ($year > 0) {
+                $where_conditions[] = "YEAR(p.completion_date) = $year";
+            }
+            break;
+    }
 }
 
 $where_clause = '';
@@ -58,10 +99,15 @@ if (!empty($where_conditions)) {
     $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 }
 
-// Get projects
-$sql = "SELECT p.*, r.rig_name, r.rig_code 
+// Get projects - UPDATED QUERY WITH CUSTOMER JOIN
+$sql = "SELECT p.*, r.rig_name, r.rig_code,
+               CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+               c.company_name,
+               c.first_name,
+               c.last_name
         FROM projects p 
         LEFT JOIN rigs r ON p.rig_id = r.id 
+        LEFT JOIN customers c ON p.customer_id = c.id
         $where_clause 
         ORDER BY p.completion_date DESC, p.id DESC";
 
@@ -96,31 +142,54 @@ $rigs = fetchAll("SELECT * FROM rigs ORDER BY rig_name");
                             </select>
                         </div>
                         
-                        <!-- Month Filter -->
-                        <div class="col-md-6 col-lg-2">
-                            <label for="month_filter" class="form-label">Month</label>
-                            <select id="month_filter" name="month" class="form-select" onchange="this.form.submit()">
-                                <option value="0">All Months</option>
-                                <?php for ($m = 1; $m <= 12; $m++): ?>
-                                    <option value="<?php echo $m; ?>" <?php echo $m == $month ? 'selected' : ''; ?>>
-                                        <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
-                                    </option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        
-                        <!-- Year Filter -->
-                        <div class="col-md-6 col-lg-2">
-                            <label for="year_filter" class="form-label">Year</label>
-                            <select id="year_filter" name="year" class="form-select" onchange="this.form.submit()">
-                                <option value="0">All Years</option>
-                                <?php for ($y = 2023; $y <= date('Y'); $y++): ?>
-                                    <option value="<?php echo $y; ?>" <?php echo $y == $year ? 'selected' : ''; ?>>
-                                        <?php echo $y; ?>
-                                    </option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
+                       <!-- Period Type Filter -->
+<div class="col-md-6 col-lg-2">
+    <label for="period_filter" class="form-label">Period Type</label>
+    <select id="period_filter" name="period" class="form-select" onchange="updatePeriodFilters()">
+        <option value="month" <?php echo $period == 'month' ? 'selected' : ''; ?>>Monthly</option>
+        <option value="quarter" <?php echo $period == 'quarter' ? 'selected' : ''; ?>>Quarterly</option>
+        <option value="year" <?php echo $period == 'year' ? 'selected' : ''; ?>>Yearly</option>
+        <option value="all" <?php echo $period == 'all' ? 'selected' : ''; ?>>All Time</option>
+    </select>
+</div>
+
+<!-- Month Filter (shown for monthly) -->
+<div class="col-md-6 col-lg-2" id="month_filter_container" style="<?php echo $period != 'month' ? 'display:none;' : ''; ?>">
+    <label for="month_filter" class="form-label">Month</label>
+    <select id="month_filter" name="month" class="form-select">
+        <option value="0">All Months</option>
+        <?php for ($m = 1; $m <= 12; $m++): ?>
+            <option value="<?php echo $m; ?>" <?php echo $m == $month ? 'selected' : ''; ?>>
+                <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
+            </option>
+        <?php endfor; ?>
+    </select>
+</div>
+
+<!-- Quarter Filter (shown for quarterly) -->
+<div class="col-md-6 col-lg-2" id="quarter_filter_container" style="<?php echo $period != 'quarter' ? 'display:none;' : ''; ?>">
+    <label for="quarter_filter" class="form-label">Quarter</label>
+    <select id="quarter_filter" name="quarter" class="form-select">
+        <option value="0">All Quarters</option>
+        <option value="1" <?php echo $quarter == 1 ? 'selected' : ''; ?>>Q1 (Jan-Mar)</option>
+        <option value="2" <?php echo $quarter == 2 ? 'selected' : ''; ?>>Q2 (Apr-Jun)</option>
+        <option value="3" <?php echo $quarter == 3 ? 'selected' : ''; ?>>Q3 (Jul-Sep)</option>
+        <option value="4" <?php echo $quarter == 4 ? 'selected' : ''; ?>>Q4 (Oct-Dec)</option>
+    </select>
+</div>
+
+<!-- Year Filter -->
+<div class="col-md-6 col-lg-2">
+    <label for="year_filter" class="form-label">Year</label>
+    <select id="year_filter" name="year" class="form-select">
+        <option value="0">All Years</option>
+        <?php for ($y = 2023; $y <= date('Y'); $y++): ?>
+            <option value="<?php echo $y; ?>" <?php echo $y == $year ? 'selected' : ''; ?>>
+                <?php echo $y; ?>
+            </option>
+        <?php endfor; ?>
+    </select>
+</div>
                         
                         <!-- Search -->
                         <div class="col-md-6 col-lg-3">
@@ -159,7 +228,18 @@ $rigs = fetchAll("SELECT * FROM rigs ORDER BY rig_name");
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">Projects List</h5>
-                    <span class="badge bg-primary"><?php echo count($projects); ?> Projects</span>
+                    <span class="badge bg-primary">
+                        <?php echo count($projects); ?> Projects 
+                        <?php 
+                        if ($period == 'month' && $month > 0 && $year > 0) {
+                            echo " - " . date('F Y', strtotime("$year-$month-01"));
+                        } elseif ($period == 'quarter' && $quarter > 0 && $year > 0) {
+                            echo " - Q$quarter $year";
+                        } elseif ($period == 'year' && $year > 0) {
+                            echo " - Year $year";
+                        }
+                        ?>
+                    </span>
                 </div>
                 <div class="card-body p-0">
                     <?php if (count($projects) == 0): ?>
@@ -190,7 +270,7 @@ $rigs = fetchAll("SELECT * FROM rigs ORDER BY rig_name");
                                 <tbody>
                                     <?php foreach ($projects as $project): 
                                         $profit = calculateProjectProfit($project['id']);
-                                        $expenses = getProjectExpenses($project['id']);
+                                        // $expenses = getProjectExpenses($project['id']);
                                     ?>
                                     <tr>
                                         <td>
@@ -201,11 +281,27 @@ $rigs = fetchAll("SELECT * FROM rigs ORDER BY rig_name");
                                         <td>
                                             <strong><?php echo htmlspecialchars($project['project_name']); ?></strong>
                                         </td>
-                                        <td><?php echo htmlspecialchars($project['client_name']); ?></td>
                                         <td>
-                                            <span class="badge bg-info text-dark">
-                                                <?php echo $project['rig_name']; ?>
-                                            </span>
+                                            <?php 
+                                            if (!empty($project['first_name']) || !empty($project['last_name'])) {
+                                                $client_display = htmlspecialchars(trim($project['first_name'] . ' ' . $project['last_name']));
+                                                if (!empty($project['company_name'])) {
+                                                    $client_display .= ' (' . htmlspecialchars($project['company_name']) . ')';
+                                                }
+                                                echo $client_display;
+                                            } else {
+                                                echo '<span class="text-muted">No client assigned</span>';
+                                            }
+                                            ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($project['rig_name'])): ?>
+                                                <span class="badge bg-info text-dark">
+                                                    <?php echo $project['rig_name']; ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted">No Rig</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="text-end"><?php echo formatCurrency($project['contract_amount']); ?></td>
                                         <td class="text-end">
@@ -304,7 +400,33 @@ document.addEventListener('DOMContentLoaded', function() {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+     // Set initial period filter state
+    updatePeriodFilters();
 });
+// Update period filter visibility
+function updatePeriodFilters() {
+    const periodType = document.getElementById('period_filter').value;
+    
+    // Hide all filter containers first
+    document.getElementById('month_filter_container').style.display = 'none';
+    document.getElementById('quarter_filter_container').style.display = 'none';
+    
+    // Show relevant filter
+    if (periodType === 'month') {
+        document.getElementById('month_filter_container').style.display = 'block';
+    } else if (periodType === 'quarter') {
+        document.getElementById('quarter_filter_container').style.display = 'block';
+    }
+    
+    // Update labels based on period
+    const yearLabel = document.querySelector('label[for="year_filter"]');
+    if (periodType === 'all') {
+        yearLabel.textContent = 'Year (Optional)';
+    } else {
+        yearLabel.textContent = 'Year';
+    }
+}
+
 </script>
 
 <?php require_once '../../includes/footer.php'; ?>

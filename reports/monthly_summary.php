@@ -41,73 +41,99 @@ if ($rig_id > 0) {
 }
 
 // Get monthly data
-// Get monthly data
 if ($rig_id > 0) {
-    $monthly_data = getRigMonthlyPerformance($rig_id, $month, $year);
-    $projects = fetchAll("SELECT p.*, 
-                         COALESCE(fe.salary_source, 'project') as salary_source 
-                         FROM projects p 
-                         LEFT JOIN fixed_expenses fe ON p.id = fe.project_id
+    // Get projects for specific rig
+    $projects = fetchAll("SELECT p.* FROM projects p 
                          WHERE p.rig_id = $rig_id 
                          AND YEAR(p.completion_date) = $year 
                          AND MONTH(p.completion_date) = $month
                          ORDER BY p.completion_date DESC");
 } else {
-    $monthly_data = [
-        'revenue' => 0,
-        'expenses' => 0,
-        'profit' => 0,
-        'project_count' => 0,
-        'profit_margin' => 0
-    ];
-    $projects = fetchAll("SELECT p.*, r.rig_name, 
-                         COALESCE(fe.salary_source, 'project') as salary_source 
+    // Get all projects for the month
+    $projects = fetchAll("SELECT p.*, r.rig_name 
                          FROM projects p 
                          LEFT JOIN rigs r ON p.rig_id = r.id
-                         LEFT JOIN fixed_expenses fe ON p.id = fe.project_id
                          WHERE YEAR(p.completion_date) = $year 
                          AND MONTH(p.completion_date) = $month
                          ORDER BY p.completion_date DESC");
-    
-    // Calculate totals for all rigs
-    foreach ($projects as $project) {
-        $expenses = getProjectExpenses($project['id']);
-        $monthly_data['revenue'] += $project['payment_received'];
-        $monthly_data['expenses'] += $expenses['total'];
-        $monthly_data['profit'] += ($project['payment_received'] - $expenses['total']);
-    }
-    $monthly_data['project_count'] = count($projects);
-    $monthly_data['profit_margin'] = $monthly_data['revenue'] > 0 ? 
-        ($monthly_data['profit'] / $monthly_data['revenue']) * 100 : 0;
 }
 
-// Get expense breakdown
-$expense_breakdown = [
-    'salaries' => 0,
-    'fuel' => 0,
-    'casings' => 0,
-    'consumables' => 0,
-    'miscellaneous' => 0
+// Initialize monthly data
+$monthly_data = [
+    'revenue' => 0,
+    'expenses' => 0,
+    'profit' => 0,
+    'project_count' => 0,
+    'profit_margin' => 0
 ];
 
-foreach ($projects as $project) {
-    $expenses = getProjectExpenses($project['id']);
-    $fixed_expenses = fetchOne("SELECT * FROM fixed_expenses WHERE project_id = {$project['id']}");
+// Get expense breakdown from new expenses system
+$expense_breakdown = [
+    'Personnel' => 0,
+    'Fuel' => 0,
+    'Materials' => 0,
+    'Consumables' => 0,
+    'Other' => 0
+];
+
+// Process each project
+foreach ($projects as &$project) {
+    // Get complete expenses for this project
+    $complete_expenses = getCompleteProjectExpenses($project['id']);
+    $project_expenses = $complete_expenses['total'];
     
-    if ($fixed_expenses) {
-        $expense_breakdown['salaries'] += $fixed_expenses['salaries'];
-        $expense_breakdown['fuel'] += $fixed_expenses['fuel_rig'] + 
-                                     $fixed_expenses['fuel_truck'] + 
-                                     $fixed_expenses['fuel_pump'] + 
-                                     $fixed_expenses['fuel_hired'];
-        $expense_breakdown['casings'] += $fixed_expenses['casing_surface'] + 
-                                        $fixed_expenses['casing_screened'] + 
-                                        $fixed_expenses['casing_plain'];
+    // Calculate revenue and profit
+    $revenue = $project['payment_received'];
+    $profit = $revenue - $project_expenses;
+    
+    // Update monthly totals
+    $monthly_data['revenue'] += $revenue;
+    $monthly_data['expenses'] += $project_expenses;
+    $monthly_data['profit'] += $profit;
+    
+    // Add to expense breakdown by category
+    $project_breakdown = getExpenseBreakdownByCategory($project['id']);
+    foreach ($project_breakdown as $category => $data) {
+        $clean_category = trim($category);
+        if (isset($expense_breakdown[$clean_category])) {
+            $expense_breakdown[$clean_category] += $data['total'];
+        } else {
+            $expense_breakdown[$clean_category] = $data['total'];
+        }
     }
     
-    $expense_breakdown['consumables'] += $expenses['consumables'];
-    $expense_breakdown['miscellaneous'] += $expenses['miscellaneous'];
+    // Determine salary source for this project
+    $salary_data = fetchOne("SELECT SUM(amount) as monthly_salary 
+                            FROM expenses 
+                            WHERE project_id = {$project['id']} 
+                            AND ref_number = 'MONTHLY-SALARY'");
+    
+    $project_salary = fetchOne("SELECT SUM(amount) as project_salary 
+                               FROM expenses 
+                               WHERE project_id = {$project['id']} 
+                               AND ref_number != 'MONTHLY-SALARY'
+                               AND expense_type_id IN (SELECT id FROM expense_types WHERE category = 'Personnel')");
+    
+    if ($salary_data && $salary_data['monthly_salary'] > 0) {
+        if ($project_salary && $project_salary['project_salary'] > 0) {
+            $salary_source = 'mixed';
+        } else {
+            $salary_source = 'monthly';
+        }
+    } else {
+        $salary_source = 'project';
+    }
+    
+    // Add salary source to project array
+    $project['salary_source'] = $salary_source;
+    $project['expenses_total'] = $project_expenses;
+    $project['profit'] = $profit;
+    $project['margin'] = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
 }
+
+$monthly_data['project_count'] = count($projects);
+$monthly_data['profit_margin'] = $monthly_data['revenue'] > 0 ? 
+    ($monthly_data['profit'] / $monthly_data['revenue']) * 100 : 0;
 ?>
 
 <div class="container-fluid mt-4">
@@ -120,6 +146,33 @@ foreach ($projects as $project) {
                     <p class="lead mb-0"><?php echo $rig_name; ?> - <?php echo date('F Y', strtotime("$year-$month-01")); ?></p>
                 </div>
                 <div class="btn-group">
+                    <form method="GET" class="d-flex gap-2 me-3">
+                        <select name="month" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <option value="<?php echo $m; ?>" <?php echo $m == $month ? 'selected' : ''; ?>>
+                                    <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                        <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <?php for ($y = 2023; $y <= date('Y'); $y++): ?>
+                                <option value="<?php echo $y; ?>" <?php echo $y == $year ? 'selected' : ''; ?>>
+                                    <?php echo $y; ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                        <select name="rig" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="0">All Rigs</option>
+                            <?php 
+                            $all_rigs = fetchAll("SELECT * FROM rigs WHERE status = 'active' ORDER BY rig_name");
+                            foreach ($all_rigs as $rig): ?>
+                                <option value="<?php echo $rig['id']; ?>" <?php echo $rig_id == $rig['id'] ? 'selected' : ''; ?>>
+                                    <?php echo $rig['rig_name']; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="hidden" name="page" value="reports">
+                    </form>
                     <button onclick="window.print()" class="btn btn-outline-primary">
                         <i class="fas fa-print"></i> Print
                     </button>
@@ -189,8 +242,8 @@ foreach ($projects as $project) {
                     <h5 class="card-title mb-0">Expense Breakdown</h5>
                 </div>
                 <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="expenseChart" height="250"></canvas>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="expenseChart"></canvas>
                     </div>
                     <div class="mt-3">
                         <small class="text-muted">Total Expenses: <?php echo formatCurrency($monthly_data['expenses']); ?></small>
@@ -208,28 +261,36 @@ foreach ($projects as $project) {
                 <div class="card-body">
                     <div class="list-group list-group-flush">
                         <?php 
-                        $expense_categories = [
-                            'salaries' => ['Salaries', 'primary'],
-                            'fuel' => ['Fuel', 'warning'],
-                            'casings' => ['Casings', 'info'],
-                            'consumables' => ['Consumables', 'success'],
-                            'miscellaneous' => ['Miscellaneous', 'secondary']
+                        // Define colors for categories
+                        $category_colors = [
+                            'Personnel' => 'primary',
+                            'Fuel' => 'warning',
+                            'Materials' => 'info',
+                            'Consumables' => 'success',
+                            'Other' => 'secondary',
+                            'Transportation' => 'dark',
+                            'Equipment' => 'light'
                         ];
                         
-                        foreach ($expense_categories as $key => $details):
-                            $percentage = $monthly_data['expenses'] > 0 ? 
-                                ($expense_breakdown[$key] / $monthly_data['expenses']) * 100 : 0;
+                        $total_expenses = $monthly_data['expenses'];
+                        foreach ($expense_breakdown as $category => $amount):
+                            if ($amount > 0):
+                                $percentage = $total_expenses > 0 ? ($amount / $total_expenses) * 100 : 0;
+                                $color = isset($category_colors[$category]) ? $category_colors[$category] : 'secondary';
                         ?>
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <span class="badge bg-<?php echo $details[1]; ?> me-2"><?php echo $details[0]; ?></span>
+                                <span class="badge bg-<?php echo $color; ?> me-2"><?php echo $category; ?></span>
                             </div>
                             <div class="text-end">
-                                <div class="fw-bold"><?php echo formatCurrency($expense_breakdown[$key]); ?></div>
+                                <div class="fw-bold"><?php echo formatCurrency($amount); ?></div>
                                 <small class="text-muted"><?php echo number_format($percentage, 1); ?>%</small>
                             </div>
                         </div>
-                        <?php endforeach; ?>
+                        <?php 
+                            endif;
+                        endforeach; 
+                        ?>
                     </div>
                 </div>
             </div>
@@ -238,118 +299,155 @@ foreach ($projects as $project) {
     
     <!-- Projects List -->
     <div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">Project Details</h5>
-                <span class="badge bg-primary"><?php echo count($projects); ?> Projects</span>
-            </div>
-            <div class="card-body p-0">
-                <?php if (count($projects) == 0): ?>
-                    <div class="text-center py-5">
-                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
-                        <h5 class="text-muted">No projects found for this period</h5>
-                    </div>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr class="small">
-                                    <th>Project Code</th>
-                                    <th>Project Name</th>
-                                    <?php if ($rig_id == 0): ?>
-                                        <th>Rig</th>
-                                    <?php endif; ?>
-                                    <!-- ADD THIS NEW COLUMN -->
-                                    <th class="text-center">Salary Type</th>
-                                    <!-- END NEW COLUMN -->
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Expenses</th>
-                                    <th class="text-end">Profit</th>
-                                    <th class="text-end">Margin</th>
-                                    <th>Completion Date</th>
-                                    <!-- Removed Actions column since it wasn't being used -->
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($projects as $project): 
-                                    $profit = calculateProjectProfit($project['id']);
-                                    $expenses = getProjectExpenses($project['id']);
-                                    $revenue = $project['payment_received'];
-                                    $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
-                                ?>
-                                <tr>
-                                    <td><span class="badge bg-secondary"><?php echo $project['project_code']; ?></span></td>
-                                    <td><?php echo htmlspecialchars($project['project_name']); ?></td>
-                                    <?php if ($rig_id == 0): ?>
-                                        <td><?php echo $project['rig_name']; ?></td>
-                                    <?php endif; ?>
-                                    <!-- ADD THIS NEW CELL -->
-                                    <td class="text-center">
-                                        <span class="badge bg-<?php echo isset($project['salary_source']) && $project['salary_source'] == 'monthly' ? 'success' : 'info'; ?>">
-                                            <?php echo ucfirst($project['salary_source'] ?? 'project'); ?>
-                                        </span>
-                                    </td>
-                                    <!-- END NEW CELL -->
-                                    <td class="text-end"><?php echo formatCurrency($revenue); ?></td>
-                                    <td class="text-end"><?php echo formatCurrency($expenses['total']); ?></td>
-                                    <td class="text-end <?php echo $profit >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'; ?>">
-                                        <?php echo formatCurrency($profit); ?>
-                                    </td>
-                                    <td class="text-end <?php echo $margin >= 0 ? 'text-success' : 'text-danger'; ?>">
-                                        <?php echo number_format($margin, 2); ?>%
-                                    </td>
-                                    <td><?php echo date('d/m/Y', strtotime($project['completion_date'])); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr>
-                                    <!-- Adjust colspan: +1 for the new Salary Type column -->
-                                    <td colspan="<?php echo $rig_id == 0 ? 4 : 3; ?>" class="fw-bold">TOTAL</td>
-                                    <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['revenue']); ?></td>
-                                    <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['expenses']); ?></td>
-                                    <td class="text-end fw-bold <?php echo $monthly_data['profit'] >= 0 ? 'text-success' : 'text-danger'; ?>">
-                                        <?php echo formatCurrency($monthly_data['profit']); ?>
-                                    </td>
-                                    <td class="text-end fw-bold <?php echo $monthly_data['profit_margin'] >= 0 ? 'text-success' : 'text-danger'; ?>">
-                                        <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                <?php endif; ?>
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Project Details</h5>
+                    <span class="badge bg-primary"><?php echo count($projects); ?> Projects</span>
+                </div>
+                <div class="card-body p-0">
+                    <?php if (count($projects) == 0): ?>
+                        <div class="text-center py-5">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No projects found for this period</h5>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr class="small">
+                                        <th>Project Code</th>
+                                        <th>Project Name</th>
+                                        <?php if ($rig_id == 0): ?>
+                                            <th>Rig</th>
+                                        <?php endif; ?>
+                                        <th class="text-center">Salary Type</th>
+                                        <th class="text-end">Revenue</th>
+                                        <th class="text-end">Expenses</th>
+                                        <th class="text-end">Profit</th>
+                                        <th class="text-end">Margin</th>
+                                        <th>Completion Date</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($projects as $project): ?>
+                                    <tr>
+                                        <td><span class="badge bg-secondary"><?php echo $project['project_code']; ?></span></td>
+                                        <td><?php echo htmlspecialchars($project['project_name']); ?></td>
+                                        <?php if ($rig_id == 0): ?>
+                                            <td><?php echo $project['rig_name'] ?? 'No Rig'; ?></td>
+                                        <?php endif; ?>
+                                        <td class="text-center">
+                                            <?php 
+                                            $badge_color = '';
+                                            $source_text = '';
+                                            switch ($project['salary_source']) {
+                                                case 'monthly':
+                                                    $badge_color = 'success';
+                                                    $source_text = 'Monthly';
+                                                    break;
+                                                case 'project':
+                                                    $badge_color = 'info';
+                                                    $source_text = 'Project';
+                                                    break;
+                                                case 'mixed':
+                                                    $badge_color = 'warning';
+                                                    $source_text = 'Mixed';
+                                                    break;
+                                                default:
+                                                    $badge_color = 'secondary';
+                                                    $source_text = 'Project';
+                                            }
+                                            ?>
+                                            <span class="badge bg-<?php echo $badge_color; ?>">
+                                                <?php echo $source_text; ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-end"><?php echo formatCurrency($project['payment_received']); ?></td>
+                                        <td class="text-end"><?php echo formatCurrency($project['expenses_total']); ?></td>
+                                        <td class="text-end <?php echo $project['profit'] >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold'; ?>">
+                                            <?php echo formatCurrency($project['profit']); ?>
+                                        </td>
+                                        <td class="text-end <?php echo $project['margin'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo number_format($project['margin'], 2); ?>%
+                                        </td>
+                                        <td><?php echo date('d/m/Y', strtotime($project['completion_date'])); ?></td>
+                                        <td class="text-center">
+                                            <a href="../modules/projects/project_details.php?id=<?php echo $project['id']; ?>" 
+                                               class="btn btn-sm btn-outline-info" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="<?php echo $rig_id == 0 ? 4 : 3; ?>" class="fw-bold">TOTAL</td>
+                                        <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['revenue']); ?></td>
+                                        <td class="text-end fw-bold"><?php echo formatCurrency($monthly_data['expenses']); ?></td>
+                                        <td class="text-end fw-bold <?php echo $monthly_data['profit'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo formatCurrency($monthly_data['profit']); ?>
+                                        </td>
+                                        <td class="text-end fw-bold <?php echo $monthly_data['profit_margin'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo number_format($monthly_data['profit_margin'], 2); ?>%
+                                        </td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
 </div>
-</div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // Expense Breakdown Chart
 document.addEventListener('DOMContentLoaded', function() {
     const expenseCtx = document.getElementById('expenseChart').getContext('2d');
+    
+    // Prepare data for chart
+    const categories = [];
+    const amounts = [];
+    const backgroundColors = [];
+    
+    // Define colors for categories
+    const colorMap = {
+        'Personnel': '#0d6efd',
+        'Fuel': '#ffc107',
+        'Materials': '#0dcaf0',
+        'Consumables': '#198754',
+        'Other': '#6c757d',
+        'Transportation': '#212529',
+        'Equipment': '#f8f9fa'
+    };
+    
+    <?php foreach ($expense_breakdown as $category => $amount): ?>
+        <?php if ($amount > 0): ?>
+            categories.push('<?php echo addslashes($category); ?>');
+            amounts.push(<?php echo $amount; ?>);
+            backgroundColors.push('<?php echo isset($category_colors[$category]) ? 
+                ($category_colors[$category] == 'primary' ? '#0d6efd' : 
+                 ($category_colors[$category] == 'warning' ? '#ffc107' : 
+                  ($category_colors[$category] == 'info' ? '#0dcaf0' : 
+                   ($category_colors[$category] == 'success' ? '#198754' : 
+                    ($category_colors[$category] == 'secondary' ? '#6c757d' : '#adb5bd'))))) : '#adb5bd'; ?>');
+        <?php endif; ?>
+    <?php endforeach; ?>
+    
     const expenseChart = new Chart(expenseCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Salaries', 'Fuel', 'Casings', 'Consumables', 'Miscellaneous'],
+            labels: categories,
             datasets: [{
-                data: [
-                    <?php echo $expense_breakdown['salaries']; ?>,
-                    <?php echo $expense_breakdown['fuel']; ?>,
-                    <?php echo $expense_breakdown['casings']; ?>,
-                    <?php echo $expense_breakdown['consumables']; ?>,
-                    <?php echo $expense_breakdown['miscellaneous']; ?>
-                ],
-                backgroundColor: [
-                    '#0d6efd', // Primary
-                    '#ffc107', // Warning
-                    '#0dcaf0', // Info
-                    '#198754', // Success
-                    '#6c757d'  // Secondary
-                ],
+                data: amounts,
+                backgroundColor: backgroundColors,
                 borderWidth: 1,
                 borderColor: '#fff'
             }]
@@ -359,10 +457,11 @@ document.addEventListener('DOMContentLoaded', function() {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'bottom',
+                    position: 'right',
                     labels: {
                         padding: 20,
-                        usePointStyle: true
+                        usePointStyle: true,
+                        boxWidth: 12
                     }
                 },
                 tooltip: {
@@ -372,7 +471,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (label) {
                                 label += ': ';
                             }
-                            label += 'Ksh ' + context.parsed.toLocaleString();
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                            label += 'Ksh ' + value.toLocaleString() + ' (' + percentage + '%)';
                             return label;
                         }
                     }

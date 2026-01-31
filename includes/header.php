@@ -17,52 +17,120 @@ $current_page = basename($_SERVER['PHP_SELF']);
 $dashboard_pages = ['index.php', 'monthly_summary.php', 'rig_comparison.php'];
 
 
-// Navigation structure - use relative paths
+
+// In header.php - Update the $nav_items array
 $nav_items = [
     'Dashboard' => [
         'icon' => 'bi-speedometer2',
-        'url' => 'index.php',  // Relative path
+        'url' => 'index.php',
         'pages' => ['index.php']
     ],
-    'Add Project' => [
-        'icon' => 'bi-plus-circle',
-        'url' => 'modules/projects/add_project.php',  // Relative path
-        'pages' => ['add_project.php']
+    'Customers' => [
+        'icon' => 'bi-people-fill',
+        'url' => 'modules/customer/manage_customers.php',
+        'pages' => ['manage_customers.php', 'view_customer.php']
     ],
-    'View Projects' => [
-        'icon' => 'bi-list-check',
-        'url' => 'modules/projects/view_projects.php',  // Relative path
-        'pages' => ['view_projects.php']
+    'Projects' => [
+        'icon' => 'bi-folder',
+        'url' => '#',
+        'pages' => ['add_project.php', 'view_projects.php', 'edit_project.php'],
+        'submenu' => [
+            'Add Project' => [
+                'icon' => 'bi-plus-circle',
+                'url' => 'modules/projects/add_project.php',
+                'pages' => ['add_project.php']
+            ],
+            'View Projects' => [
+                'icon' => 'bi-list-check',
+                'url' => 'modules/projects/view_projects.php',
+                'pages' => ['view_projects.php']
+            ]
+        ]
+    ],
+    'Expenses' => [
+        'icon' => 'bi-cash-stack',
+        'url' => '#',
+        'pages' => ['manage_expenses.php', 'add_expense.php'],
+        'submenu' => [
+            'All Expenses' => [
+                'icon' => 'bi-receipt',
+                'url' => 'modules/expenses/manage_expenses.php',
+                'pages' => ['manage_expenses.php']
+            ],
+            'Add Expense' => [
+                'icon' => 'bi-plus-lg',
+                'url' => 'modules/expenses/manage_expenses.php?action=add',
+                'pages' => ['add_expense.php']
+            ],
+            'Suppliers' => [
+                'icon' => 'bi-truck',
+                'url' => 'modules/expenses/manage_suppliers.php',
+                'pages' => ['manage_suppliers.php']
+            ],
+            'Vehicles' => [
+                'icon' => 'bi-car-front',
+                'url' => 'modules/expenses/manage_vehicles.php',
+                'pages' => ['manage_vehicles.php']
+            ]
+        ]
     ],
     'Rigs Management' => [
         'icon' => 'bi-truck',
-        'url' => 'modules/rigs/view_rigs.php',  // Relative path
+        'url' => 'modules/rigs/view_rigs.php',
         'pages' => ['view_rigs.php']
     ],
-     'Monthly Salaries' => [
+    'Reports' => [
+        'icon' => 'bi-graph-up',
+        'url' => '#',
+        'pages' => ['monthly_summary.php', 'rig_monthly_report.php'],
+        'submenu' => [
+            'Monthly Summary' => [
+                'icon' => 'bi-calendar-month',
+                'url' => 'reports/monthly_summary.php',
+                'pages' => ['monthly_summary.php']
+            ],
+            'Rig Monthly Report' => [
+                'icon' => 'bi-clipboard-data',
+                'url' => 'modules/reports/rig_monthly_report.php',
+                'pages' => ['rig_monthly_report.php']
+            ],
+            'Customer Reports' => [
+                'icon' => 'bi-person-lines-fill',
+                'url' => 'modules/reports/customer_report.php',
+                'pages' => ['customer_report.php']
+            ],
+            'Expense Analysis' => [
+                'icon' => 'bi-pie-chart',
+                'url' => 'modules/reports/expense_report.php',
+                'pages' => ['expense_report.php']
+            ]
+        ]
+    ],
+    'Monthly Salaries' => [
         'icon' => 'bi-calculator',
         'url' => 'modules/salary/monthly_allocation.php',
         'pages' => ['monthly_allocation.php']
     ],
-    'Reports' => [
-        'icon' => 'bi-file-earmark-text',
-        'url' => 'reports/monthly_summary.php',  // Relative path
-        'pages' => ['monthly_summary.php']
-    ],
-
     'Rig Comparison' => [
-    'icon' => 'bi-bar-chart-line',
-    'url' => 'rig_comparison.php',
-    'pages' => ['rig_comparison.php']
-],
-
+        'icon' => 'bi-bar-chart-line',
+        'url' => 'rig_comparison.php',
+        'pages' => ['rig_comparison.php']
+    ]
 ];
 
 // Function to check if link is active
 function isActive($pages, $current_page) {
     return in_array($current_page, $pages);
 }
-
+// In header.php - Add this function
+function checkSubmenuActive($submenu, $current_page) {
+    foreach ($submenu as $item) {
+        if (isActive($item['pages'], $current_page)) {
+            return true;
+        }
+    }
+    return false;
+}
 // Function to get correct URL - FIXED VERSION with proper protocol
 function getUrl($relative_path) {
     // Remove any leading slashes
@@ -127,10 +195,12 @@ function getAbsoluteUrl($path) {
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <!-- Chart.js -->
+     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <!-- Custom CSS -->
     <style>
         :root {
@@ -154,7 +224,52 @@ function getAbsoluteUrl($path) {
             overflow-x: hidden;
             padding-top: var(--header-height); /* Added for sticky header */
         }
-        
+        /* Add to header.php CSS section */
+
+    /* Dropdown menu styling */
+    .sidebar-menu .dropdown-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: relative;
+    }
+
+    .sidebar-menu .dropdown-toggle::after {
+        display: none;
+    }
+
+    .sidebar-menu .bi-chevron-right {
+        transition: transform 0.3s;
+        font-size: 0.8rem;
+    }
+
+    .sidebar-menu .dropdown-toggle[aria-expanded="true"] .bi-chevron-right {
+        transform: rotate(90deg);
+    }
+
+    .sidebar-menu .submenu {
+        padding-left: 40px;
+        background-color: #f8f9fc;
+    }
+
+    .sidebar-menu .submenu .nav-link {
+        padding: 8px 20px;
+        font-size: 0.9rem;
+        border-left: 3px solid transparent;
+    }
+
+    .sidebar-menu .submenu .nav-link:hover,
+    .sidebar-menu .submenu .nav-link.active {
+        border-left: 3px solid var(--primary-color);
+        background-color: #e9ecef;
+    }
+
+    /* Mobile responsive for dropdowns */
+    @media (max-width: 992px) {
+        .sidebar-menu .submenu {
+            padding-left: 30px;
+        }
+    }
         /* Top Navigation Bar - FIXED AND STICKY */
         .top-navbar {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
@@ -418,6 +533,47 @@ function getAbsoluteUrl($path) {
                 }
             });
         });
+        // Add to header.php JavaScript section
+
+// Handle sidebar dropdowns
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-expand active dropdowns
+    const activeDropdowns = document.querySelectorAll('.sidebar-menu .collapse.show');
+    activeDropdowns.forEach(dropdown => {
+        const toggle = dropdown.previousElementSibling;
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+    });
+    
+    // Save dropdown states
+    const dropdownToggles = document.querySelectorAll('.sidebar-menu .dropdown-toggle');
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-bs-target');
+            const dropdownId = targetId.replace('#', '');
+            const isExpanded = this.getAttribute('aria-expanded') === 'true';
+            
+            // Save state to localStorage
+            const dropdownStates = JSON.parse(localStorage.getItem('dropdownStates') || '{}');
+            dropdownStates[dropdownId] = isExpanded;
+            localStorage.setItem('dropdownStates', JSON.stringify(dropdownStates));
+        });
+    });
+    
+    // Restore dropdown states
+    const dropdownStates = JSON.parse(localStorage.getItem('dropdownStates') || '{}');
+    Object.keys(dropdownStates).forEach(dropdownId => {
+        if (dropdownStates[dropdownId]) {
+            const dropdown = document.getElementById(dropdownId);
+            const toggle = dropdown ? dropdown.previousElementSibling : null;
+            if (dropdown && toggle) {
+                dropdown.classList.add('show');
+                toggle.setAttribute('aria-expanded', 'true');
+            }
+        }
+    });
+});
     </script>
 </head>
 <body>
@@ -501,9 +657,37 @@ function getAbsoluteUrl($path) {
             <p>Rig Performance System</p>
         </div>
         
-        <nav class="sidebar-menu">
-            <ul class="nav flex-column">
-                <?php foreach ($nav_items as $label => $item): ?>
+       <!-- In header.php - Replace the sidebar-menu section -->
+<nav class="sidebar-menu">
+    <ul class="nav flex-column" id="sidebar-menu">
+        <?php foreach ($nav_items as $label => $item): ?>
+            <?php if (isset($item['submenu'])): ?>
+                <!-- Dropdown menu item -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="collapse" 
+                       data-bs-target="#<?php echo strtolower(str_replace(' ', '-', $label)); ?>-collapse" 
+                       aria-expanded="<?php echo checkSubmenuActive($item['submenu'], $current_page) ? 'true' : 'false'; ?>">
+                        <i class="bi <?php echo $item['icon']; ?>"></i>
+                        <?php echo $label; ?>
+                        <i class="bi bi-chevron-right ms-auto"></i>
+                    </a>
+                    <div class="collapse <?php echo checkSubmenuActive($item['submenu'], $current_page) ? 'show' : ''; ?>" 
+                         id="<?php echo strtolower(str_replace(' ', '-', $label)); ?>-collapse">
+                        <ul class="nav flex-column submenu">
+                            <?php foreach ($item['submenu'] as $sub_label => $sub_item): ?>
+                                <li class="nav-item">
+                                    <a class="nav-link <?php echo isActive($sub_item['pages'], $current_page) ? 'active' : ''; ?>" 
+                                       href="<?php echo getUrl($sub_item['url']); ?>">
+                                        <i class="bi <?php echo $sub_item['icon']; ?>"></i>
+                                        <?php echo $sub_label; ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </li>
+            <?php else: ?>
+                <!-- Regular menu item -->
                 <li class="nav-item">
                     <a class="nav-link <?php echo isActive($item['pages'], $current_page) ? 'active' : ''; ?>" 
                        href="<?php echo getUrl($item['url']); ?>">
@@ -511,25 +695,30 @@ function getAbsoluteUrl($path) {
                         <?php echo $label; ?>
                     </a>
                 </li>
-                <?php endforeach; ?>
-                
-                <li class="nav-item mt-auto">
-                    <hr>
-                    <div class="px-3 py-2">
-                        <div class="text-muted small">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Version 1.0.0
-                        </div>
-                    </div>
-                </li>
-            </ul>
-        </nav>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        
+        <li class="nav-item mt-auto">
+            <hr>
+            <div class="px-3 py-2">
+                <div class="text-muted small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Version 2.0.0
+                </div>
+                <div class="text-muted small">
+                    <i class="bi bi-person-check me-1"></i>
+                    <?php echo ucfirst($user_role); ?>
+                </div>
+            </div>
+        </li>
+    </ul>
+</nav>
     </aside>
     
     <!-- Main Content -->
     <main class="main-content">
         <?php if (in_array($current_page, $dashboard_pages)): ?>
-        <div class="month-selector">
+        <!-- <div class="month-selector">
             <div>
                 <h3>Monthly Performance: <?php echo date('F Y', strtotime("$selected_year-$selected_month-01")); ?></h3>
                 <p class="text-muted mb-0">View and analyze rig performance for the selected period</p>
@@ -553,7 +742,7 @@ function getAbsoluteUrl($path) {
                     <input type="hidden" name="rig" value="<?php echo htmlspecialchars($_GET['rig']); ?>">
                 <?php endif; ?>
             </form>
-        </div>
+        </div> -->
         <?php else: ?>
         <!-- <div class="page-header">
             <div class="d-flex justify-content-between align-items-center">

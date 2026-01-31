@@ -16,6 +16,8 @@ define('BASE_URL', 'http://' . $_SERVER['HTTP_HOST'] . $project_root);
 define('INCLUDES_DIR', ROOT_PATH . '/includes');
 define('MODULES_DIR', ROOT_PATH . '/modules');
 define('REPORTS_DIR', ROOT_PATH . '/reports');
+define('UPLOAD_PATH', ROOT_PATH . '/uploads/');
+define('EXPENSE_RECEIPTS_PATH', UPLOAD_PATH . 'expenses/');
 // Function to include files safely
 function includeSafe($file_path) {
     if (file_exists($file_path)) {
